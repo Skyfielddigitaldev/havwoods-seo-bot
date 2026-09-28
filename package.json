@@ -1,0 +1,15 @@
+{
+  "name": "havwoods-seo-bot",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Weekly technical SEO sync and monthly Core Web Vitals pull for Havwoods US, sourced from Semrush and Google PageSpeed Insights, written into monday.com.",
+  "type": "module",
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "weekly": "node src/weekly-technical-seo.js",
+    "monthly": "node src/monthly-core-web-vitals.js"
+  },
+  "license": "UNLICENSED"
+}

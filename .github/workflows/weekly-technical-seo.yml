@@ -1,0 +1,44 @@
+name: Weekly Technical SEO Sync
+
+on:
+  schedule:
+    # 8:07am America/New_York = 12:07 UTC (13:07 UTC during EST, GitHub
+    # Actions schedules run in UTC and don't shift for daylight saving;
+    # adjust the hour below by 1 in November if you need it pinned to
+    # local time year-round).
+    - cron: "7 12 * * 1"
+  workflow_dispatch: {} # lets you trigger a manual test run from the Actions tab
+
+permissions:
+  contents: write # needed to commit data/ state files back to the repo
+
+concurrency:
+  group: weekly-technical-seo
+  cancel-in-progress: false
+
+jobs:
+  run:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repo
+        uses: actions/checkout@v4
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Run weekly technical SEO sync
+        env:
+          SEMRUSH_API_KEY: ${{ secrets.SEMRUSH_API_KEY }}
+          SEMRUSH_PROJECT_ID: ${{ vars.SEMRUSH_PROJECT_ID }}
+          MONDAY_API_TOKEN: ${{ secrets.MONDAY_API_TOKEN }}
+        run: npm run weekly
+
+      - name: Commit updated state
+        run: |
+          git config user.name "havwoods-seo-bot"
+          git config user.email "actions@users.noreply.github.com"
+          git add data/
+          git diff --cached --quiet || git commit -m "Update technical SEO state [skip ci]"
+          git push

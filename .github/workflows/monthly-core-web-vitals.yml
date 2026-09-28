@@ -1,0 +1,41 @@
+name: Monthly Core Web Vitals Pull
+
+on:
+  schedule:
+    # 8:13am America/New_York = 12:13 UTC, 2nd of each month.
+    - cron: "13 12 2 * *"
+  workflow_dispatch: {} # lets you trigger a manual test run from the Actions tab
+
+permissions:
+  contents: write # needed to commit data/ state files back to the repo
+
+concurrency:
+  group: monthly-core-web-vitals
+  cancel-in-progress: false
+
+jobs:
+  run:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repo
+        uses: actions/checkout@v4
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Run monthly Core Web Vitals pull
+        env:
+          SEMRUSH_API_KEY: ${{ secrets.SEMRUSH_API_KEY }}
+          MONDAY_API_TOKEN: ${{ secrets.MONDAY_API_TOKEN }}
+          PAGESPEED_API_KEY: ${{ secrets.PAGESPEED_API_KEY }}
+        run: npm run monthly
+
+      - name: Commit updated state
+        run: |
+          git config user.name "havwoods-seo-bot"
+          git config user.email "actions@users.noreply.github.com"
+          git add data/
+          git diff --cached --quiet || git commit -m "Update CWV state [skip ci]"
+          git push

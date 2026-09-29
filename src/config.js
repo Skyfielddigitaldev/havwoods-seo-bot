@@ -72,17 +72,33 @@ export const boards = {
       labCls: "numeric_mm7njm6c",
     },
   },
+  priorityPages: {
+    id: 18433242728,
+    groupId: "group_mm7ne1ex",
+    columns: {
+      pageUrl: "link_mm7ngzc4",
+      priorityCategory: "color_mm7ncg7w",
+      targetKeyword: "text_mm7nrxc3",
+      currentPosition: "numeric_mm7n7m5q",
+      previousPosition: "numeric_mm7nmgyp",
+      page1Status: "color_mm7ntk07",
+      positionTrend: "color_mm7ndpxx",
+      assignee: "multiple_person_mm7nx8tf",
+      lastChecked: "date_mm7n593e",
+    },
+  },
 };
 
 // Priority commercial categories for internal linking / position tracking,
-// matched against page URL slugs.
+// matched against page URL slugs. `label` is the status option on the
+// HW Priority Pages Performance board's Priority Category column.
 export const priorityCategories = [
-  "wall-paneling",
-  "herringbone",
-  "chevron",
-  "parquet",
-  "wide-plank",
-  "engineered",
+  { slug: "wall-paneling", label: "Wall Paneling" },
+  { slug: "herringbone", label: "Herringbone" },
+  { slug: "chevron", label: "Chevron" },
+  { slug: "parquet", label: "Parquet" },
+  { slug: "wide-plank", label: "Wide Plank" },
+  { slug: "engineered", label: "Engineered" },
 ];
 
 export function monthGroupName(date = new Date()) {

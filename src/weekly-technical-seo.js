@@ -113,28 +113,18 @@ async function main() {
     }
   }
 
-  // Priority category position tracking (page 2 -> page 1).
+  // Priority category page tracking: one row per page on HW Priority Pages
+  // Performance, upserted with its best-ranking keyword, current position,
+  // page 1 status, and trend versus what was on the board last week. The
+  // board itself is the source of truth for "previous" values, no separate
+  // state file needed.
   let p2p1Moves = 0;
   let positionError = null;
   try {
-    const previousPositions = await readState("position-state.json", {});
-    const current = await getPositionsForUrlPatterns(
-      SEMRUSH_DOMAIN,
-      priorityCategories,
-      { database: SEMRUSH_DATABASE }
-    );
-    const currentByKeyword = {};
-    for (const row of current) {
-      currentByKeyword[row.keyword] = row.position;
-      const prevPosition = previousPositions[row.keyword];
-      if (prevPosition && prevPosition > 10 && row.position <= 10) {
-        p2p1Moves += 1;
-      }
-    }
-    await writeState("position-state.json", currentByKeyword);
+    p2p1Moves = await syncPriorityPages();
   } catch (err) {
     positionError = err.message;
-    console.error(`Position tracking failed, continuing without it: ${positionError}`);
+    console.error(`Priority page tracking failed, continuing without it: ${positionError}`);
   }
 
   // Update KPI dashboard.
@@ -206,7 +196,105 @@ function normalizeSiteAuditIssues(raw) {
 }
 
 function priorityCategoriesMatch(url) {
-  return priorityCategories.some((slug) => url.includes(slug));
+  return priorityCategories.some((category) => url.includes(category.slug));
+}
+
+function matchedCategoryLabel(url) {
+  return priorityCategories.find((category) => url.includes(category.slug))?.label ?? "Other";
+}
+
+// Pulls current keyword positions for the priority category pages,
+// aggregates to one best-ranking keyword per page, and upserts each page
+// as a row on HW Priority Pages Performance. Returns the number of pages
+// that moved from page 2+ to page 1 since the last run.
+async function syncPriorityPages() {
+  const rows = await getPositionsForUrlPatterns(
+    SEMRUSH_DOMAIN,
+    priorityCategories.map((category) => category.slug),
+    { database: SEMRUSH_DATABASE }
+  );
+
+  // Keep only each page's best-ranking (lowest position number) keyword, so
+  // the board shows one representative row per URL rather than one per
+  // keyword.
+  const bestByUrl = new Map();
+  for (const row of rows) {
+    if (!Number.isFinite(row.position)) continue;
+    const existing = bestByUrl.get(row.url);
+    if (!existing || row.position < existing.position) {
+      bestByUrl.set(row.url, row);
+    }
+  }
+
+  const existingItems = await monday.getBoardItems(boards.priorityPages.id, {
+    groupId: boards.priorityPages.groupId,
+    columnIds: [boards.priorityPages.columns.pageUrl, boards.priorityPages.columns.currentPosition],
+  });
+  const existingByUrl = new Map();
+  for (const item of existingItems) {
+    const cols = Object.fromEntries(item.column_values.map((c) => [c.id, c]));
+    let url;
+    try {
+      url = cols[boards.priorityPages.columns.pageUrl]?.value
+        ? JSON.parse(cols[boards.priorityPages.columns.pageUrl].value).url
+        : null;
+    } catch {
+      url = null;
+    }
+    const previousPosition = cols[boards.priorityPages.columns.currentPosition]?.text
+      ? Number(cols[boards.priorityPages.columns.currentPosition].text)
+      : null;
+    if (url) existingByUrl.set(url, { itemId: item.id, previousPosition });
+  }
+
+  let p2p1Moves = 0;
+
+  for (const [url, row] of bestByUrl) {
+    const existing = existingByUrl.get(url);
+    const previousPosition = existing?.previousPosition ?? null;
+
+    let trend = "New";
+    if (previousPosition !== null) {
+      if (row.position < previousPosition) trend = "Improved";
+      else if (row.position > previousPosition) trend = "Declined";
+      else trend = "Steady";
+    }
+    if (previousPosition !== null && previousPosition > 10 && row.position <= 10) {
+      p2p1Moves += 1;
+    }
+
+    const columnValues = {
+      [boards.priorityPages.columns.pageUrl]: monday.columnValue.link(url),
+      [boards.priorityPages.columns.priorityCategory]: monday.columnValue.status(matchedCategoryLabel(url)),
+      [boards.priorityPages.columns.targetKeyword]: monday.columnValue.text(row.keyword),
+      [boards.priorityPages.columns.currentPosition]: monday.columnValue.numbers(row.position),
+      [boards.priorityPages.columns.previousPosition]: monday.columnValue.numbers(previousPosition),
+      [boards.priorityPages.columns.page1Status]: monday.columnValue.status(
+        row.position <= 10 ? "On Page 1" : "Not Yet"
+      ),
+      [boards.priorityPages.columns.positionTrend]: monday.columnValue.status(trend),
+      [boards.priorityPages.columns.assignee]: monday.columnValue.people([DEFAULT_ASSIGNEE_ID]),
+      [boards.priorityPages.columns.lastChecked]: monday.columnValue.date(isoDate()),
+    };
+
+    if (existing) {
+      await monday.changeColumnValues(boards.priorityPages.id, existing.itemId, columnValues);
+    } else {
+      await monday.createItem(boards.priorityPages.id, boards.priorityPages.groupId, pageNameFromUrl(url), columnValues);
+    }
+  }
+
+  return p2p1Moves;
+}
+
+function pageNameFromUrl(url) {
+  try {
+    const u = new URL(url);
+    const path = u.pathname.replace(/\/+$/, "");
+    return path === "" ? u.hostname : path;
+  } catch {
+    return url;
+  }
 }
 
 // Best-effort mapping from Semrush's internal issue ids/types to our

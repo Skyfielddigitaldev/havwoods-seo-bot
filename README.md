@@ -15,9 +15,14 @@ the workflows.
   anything already logged and still open, so re-runs don't duplicate).
 - Anything needing a developer/CMS-template fix also gets pushed to
   **HW Tasks > Recurring Monthly Tasks**, linked back to the source item.
-- Checks priority category pages (wall paneling, herringbone, chevron,
-  parquet, wide plank, engineered) for page-2-to-page-1 movement.
-- Updates the current month's row on **HW KPI Dashboard**.
+- Upserts one row per priority category page (wall paneling, herringbone,
+  chevron, parquet, wide plank, engineered) on **HW Priority Pages
+  Performance**: its best-ranking keyword, current position, page 1
+  status, and trend (Improved / Declined / Steady / New) versus last
+  week. Previous position comes from what's already on the board, no
+  separate state file.
+- Updates the current month's row on **HW KPI Dashboard**, including how
+  many priority pages moved from page 2+ to page 1 this run.
 
 **Monthly** (`.github/workflows/monthly-core-web-vitals.yml`, the 2nd of
 each month, 8:13am ET)

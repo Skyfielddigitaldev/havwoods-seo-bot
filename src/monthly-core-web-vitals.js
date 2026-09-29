@@ -134,19 +134,20 @@ async function main() {
     failures.length ? `${failures.length} page(s) could not be checked (rate limited or errored).` : null,
   ].filter(Boolean).join(" ");
 
+  const kpiColumnValues = {
+    [boards.kpiDashboard.columns.cwvPassRate]: monday.columnValue.numbers(passRate),
+    [boards.kpiDashboard.columns.reportDate]: monday.columnValue.date(isoDate()),
+    [boards.kpiDashboard.columns.notes]: monday.columnValue.text(notesLines),
+  };
+
   if (!kpiItem) {
-    const id = await monday.createItem(boards.kpiDashboard.id, kpiGroupId, monthName, {
-      [boards.kpiDashboard.columns.cwvPassRate]: monday.columnValue.numbers(passRate),
-      [boards.kpiDashboard.columns.reportDate]: monday.columnValue.date(isoDate()),
-      [boards.kpiDashboard.columns.notes]: monday.columnValue.text(notesLines),
-    });
+    const id = await monday.createItem(boards.kpiDashboard.id, kpiGroupId, monthName, kpiColumnValues);
     kpiItem = { id };
   } else {
-    await monday.changeColumnValues(boards.kpiDashboard.id, kpiItem.id, {
-      [boards.kpiDashboard.columns.cwvPassRate]: monday.columnValue.numbers(passRate),
-      [boards.kpiDashboard.columns.reportDate]: monday.columnValue.date(isoDate()),
-    });
-    await monday.createUpdate(kpiItem.id, notesLines);
+    // Overwrite the Notes column rather than posting an Update, so the
+    // latest run's summary lives on the board itself instead of in the
+    // activity feed.
+    await monday.changeColumnValues(boards.kpiDashboard.id, kpiItem.id, kpiColumnValues);
   }
 
   await writeState("cwv-state.json", state);

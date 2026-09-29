@@ -147,43 +147,37 @@ async function main() {
     (i) => i.status !== "Fixed"
   ).length;
 
+  // Same weekly summary that used to go out as a comment/Update now lives
+  // entirely in the KPI Dashboard's Notes column, so it's on the board
+  // itself rather than in the activity feed.
+  const notesLines = [
+    `${isoDate()}: ${newlyLogged.length} new issue(s) logged, ${openIssueCount} open total.`,
+    pushedToTasks.length ? `${pushedToTasks.length} pushed to HW Tasks for dev/CMS action.` : null,
+    newlyLogged.length
+      ? Object.entries(countBy(newlyLogged, (i) => i.label))
+          .map(([label, count]) => `${label}: ${count}`)
+          .join(", ")
+      : null,
+    p2p1Moves > 0 ? `${p2p1Moves} priority keyword(s) moved from page 2 to page 1.` : null,
+    siteAuditError ? `Site Audit fetch failed: ${siteAuditError}` : null,
+    positionError ? `Position tracking failed: ${positionError}` : null,
+  ].filter(Boolean).join(" ");
+
+  const kpiColumnValues = {
+    [boards.kpiDashboard.columns.technicalErrorCount]: monday.columnValue.numbers(openIssueCount),
+    [boards.kpiDashboard.columns.p2p1Moves]: monday.columnValue.numbers(p2p1Moves),
+    [boards.kpiDashboard.columns.reportDate]: monday.columnValue.date(isoDate()),
+    [boards.kpiDashboard.columns.notes]: monday.columnValue.text(notesLines),
+  };
+
   if (!kpiItem) {
-    const id = await monday.createItem(boards.kpiDashboard.id, kpiGroupId, kpiGroupName, {
-      [boards.kpiDashboard.columns.technicalErrorCount]: monday.columnValue.numbers(openIssueCount),
-      [boards.kpiDashboard.columns.p2p1Moves]: monday.columnValue.numbers(p2p1Moves),
-      [boards.kpiDashboard.columns.reportDate]: monday.columnValue.date(isoDate()),
-      [boards.kpiDashboard.columns.notes]: monday.columnValue.text(
-        `${isoDate()}: initial weekly sync, ${newlyLogged.length} new issue(s) logged.`
-      ),
-    });
+    const id = await monday.createItem(boards.kpiDashboard.id, kpiGroupId, kpiGroupName, kpiColumnValues);
     kpiItem = { id };
   } else {
-    await monday.changeColumnValues(boards.kpiDashboard.id, kpiItem.id, {
-      [boards.kpiDashboard.columns.technicalErrorCount]: monday.columnValue.numbers(openIssueCount),
-      [boards.kpiDashboard.columns.p2p1Moves]: monday.columnValue.numbers(p2p1Moves),
-      [boards.kpiDashboard.columns.reportDate]: monday.columnValue.date(isoDate()),
-    });
-    await monday.createUpdate(
-      kpiItem.id,
-      `${isoDate()}: +${newlyLogged.length} technical issue(s) logged this week, ${openIssueCount} open total, ${p2p1Moves} priority keyword(s) moved to page 1.`
-    );
+    await monday.changeColumnValues(boards.kpiDashboard.id, kpiItem.id, kpiColumnValues);
   }
 
   await writeState("technical-seo-state.json", state);
-
-  // Summary update on the first item logged this run (or skip if nothing to report on).
-  if (newlyLogged.length > 0) {
-    const summaryLines = [
-      `Weekly crawl summary (${isoDate()}):`,
-      `- ${newlyLogged.length} new issue(s) logged`,
-      `- ${pushedToTasks.length} pushed to HW Tasks for dev/CMS action`,
-      ...Object.entries(countBy(newlyLogged, (i) => i.label)).map(([label, count]) => `  - ${label}: ${count}`),
-      p2p1Moves > 0 ? `- ${p2p1Moves} priority keyword(s) moved from page 2 to page 1` : null,
-      siteAuditError ? `- Site Audit fetch failed: ${siteAuditError}` : null,
-      positionError ? `- Position tracking failed: ${positionError}` : null,
-    ].filter(Boolean);
-    await monday.createUpdate(newlyLogged[0].itemId, summaryLines.join("\n"));
-  }
 
   console.log("Weekly technical SEO sync complete.");
   console.log(`  New issues logged: ${newlyLogged.length}`);

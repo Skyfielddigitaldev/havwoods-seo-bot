@@ -67,6 +67,9 @@ export const boards = {
       renderBlockingFix: "color_mm7mqca",
       template: "text_mm7mrq5q",
       reviewDate: "date_mm7mhbs4",
+      dataSource: "color_mm7n42g0",
+      labLcp: "numeric_mm7nw4b7",
+      labCls: "numeric_mm7njm6c",
     },
   },
 };

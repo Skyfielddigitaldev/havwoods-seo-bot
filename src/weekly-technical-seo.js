@@ -70,7 +70,7 @@ async function main() {
     }
 
     const issueLabel = ISSUE_TYPE_LABELS[issue.category] ?? issue.category;
-    const itemName = `${issueLabel} — ${issue.url}`;
+    const itemName = `${issueLabel}: ${issue.url}`;
 
     const itemId = await monday.createItem(boards.technicalSeo.id, groupId, itemName, {
       [boards.technicalSeo.columns.issueType]: monday.columnValue.status(issueLabel),
@@ -96,7 +96,7 @@ async function main() {
       const taskId = await monday.createItem(
         boards.tasks.id,
         boards.tasks.recurringGroupId,
-        `Fix: ${issueLabel} — ${issue.url}`,
+        `Fix: ${issueLabel}: ${issue.url}`,
         {
           [boards.tasks.columns.assignee]: monday.columnValue.people([DEFAULT_ASSIGNEE_ID]),
           [boards.tasks.columns.priority]: monday.columnValue.status(

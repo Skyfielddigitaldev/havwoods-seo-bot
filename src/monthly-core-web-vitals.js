@@ -80,6 +80,9 @@ async function main() {
       ),
       [boards.mobilePerformance.columns.template]: monday.columnValue.text(template),
       [boards.mobilePerformance.columns.reviewDate]: monday.columnValue.date(isoDate()),
+      [boards.mobilePerformance.columns.dataSource]: monday.columnValue.status(psi.dataSource),
+      [boards.mobilePerformance.columns.labLcp]: monday.columnValue.numbers(psi.labLcpSeconds),
+      [boards.mobilePerformance.columns.labCls]: monday.columnValue.numbers(psi.labClsValue),
     };
 
     const existingItemId = existingByUrl.get(url);
@@ -101,6 +104,9 @@ async function main() {
       lcpSeconds: psi.lcpSeconds,
       inpMs: psi.inpMs,
       clsValue: psi.clsValue,
+      labLcpSeconds: psi.labLcpSeconds,
+      dataSource: psi.dataSource,
+      usedFallbackOrigin: psi.usedFallbackOrigin,
       usedLabData: psi.usedLabData,
       changedFromPass: previous === "Pass" && psi.status !== "Pass",
       changedToPass: previous !== "Pass" && psi.status === "Pass",
@@ -145,13 +151,25 @@ async function main() {
 
   await writeState("cwv-state.json", state);
 
-  const worst = [...results].sort((a, b) => (b.lcpSeconds ?? 0) - (a.lcpSeconds ?? 0)).slice(0, 5);
+  const originFallbackCount = results.filter((r) => r.usedFallbackOrigin).length;
+  const labOnlyCount = results.filter((r) => r.usedLabData).length;
+
+  // When a page's field LCP is a site-wide origin average, it's identical
+  // across every such page and useless for ranking, so rank those by their
+  // page-specific lab LCP instead.
+  const rankLcp = (r) => (r.usedFallbackOrigin || r.usedLabData ? r.labLcpSeconds : r.lcpSeconds) ?? 0;
+  const worst = [...results].sort((a, b) => rankLcp(b) - rankLcp(a)).slice(0, 5);
+
   console.log("Monthly Core Web Vitals pull complete.");
   console.log(`  Pass rate: ${passRate}% (${passCount}/${urls.length})`);
   console.log(`  Failures: ${failures.length}`);
-  console.log("  Worst 5 by LCP:");
+  console.log(
+    `  Data source: ${urls.length - originFallbackCount - labOnlyCount} URL field data, ` +
+      `${originFallbackCount} origin field data (site avg), ${labOnlyCount} lab data only`
+  );
+  console.log("  Worst 5 by LCP (lab LCP used for ranking where field data is origin-level):");
   for (const page of worst) {
-    console.log(`    ${page.url} — LCP ${page.lcpSeconds}s, status ${page.status}`);
+    console.log(`    ${page.url}: field LCP ${page.lcpSeconds}s, lab LCP ${page.labLcpSeconds}s, source ${page.dataSource}, status ${page.status}`);
   }
   if (failures.length > 0) {
     console.log("  Pages that could not be checked this run (left with prior data):");

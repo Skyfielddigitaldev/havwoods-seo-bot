@@ -81,7 +81,7 @@ function parsePsiResponse(json) {
   let lcpSeconds = null;
   let inpMs = null;
   let clsValue = null;
-  let usedFallbackOrigin = Boolean(!crux && originCrux);
+  const usedFallbackOrigin = Boolean(!crux && originCrux);
   let usedLabData = false;
 
   if (source) {
@@ -97,14 +97,35 @@ function parsePsiResponse(json) {
       ? source.CUMULATIVE_LAYOUT_SHIFT_SCORE.percentile / 100
       : null;
   } else if (lighthouse) {
-    // No CrUX field data at all (low-traffic page) - fall back to lab data.
+    // No CrUX field data at all (low-traffic page) - fall back to lab data
+    // as the primary numbers.
     usedLabData = true;
-    lcpSeconds = audits["largest-contentful-paint"]?.numericValue
-      ? audits["largest-contentful-paint"].numericValue / 1000
-      : null;
-    clsValue = audits["cumulative-layout-shift"]?.numericValue ?? null;
+  }
+
+  // Lighthouse lab data is always available (it's a live simulated run) even
+  // when CrUX field data exists, so pull it separately. Field data (real
+  // users) only ever comes from `crux`, which is genuinely per-URL; when the
+  // site falls back to `originCrux` that's a site-wide average repeated for
+  // every page, so it's flagged rather than treated as page-specific.
+  const labLcpSeconds = audits["largest-contentful-paint"]?.numericValue
+    ? Number((audits["largest-contentful-paint"].numericValue / 1000).toFixed(2))
+    : null;
+  const labClsValue = audits["cumulative-layout-shift"]?.numericValue !== undefined
+    ? Number(audits["cumulative-layout-shift"].numericValue.toFixed(3))
+    : null;
+
+  if (usedLabData) {
+    lcpSeconds = labLcpSeconds;
+    clsValue = labClsValue;
     inpMs = null; // Lighthouse lab runs don't produce INP.
   }
+
+  // One line to say, at a glance, what kind of number the row is showing.
+  const dataSource = crux
+    ? "URL Field Data"
+    : usedFallbackOrigin
+      ? "Origin Field Data (Site Avg)"
+      : "Lab Data Only";
 
   const status = worstOf([
     rateStatus("lcp", lcpSeconds),
@@ -116,6 +137,9 @@ function parsePsiResponse(json) {
     lcpSeconds: lcpSeconds !== null ? Number(lcpSeconds.toFixed(2)) : null,
     inpMs: inpMs !== null ? Math.round(inpMs) : null,
     clsValue: clsValue !== null ? Number(clsValue.toFixed(3)) : null,
+    labLcpSeconds,
+    labClsValue,
+    dataSource,
     status,
     hasFieldData,
     usedFallbackOrigin,

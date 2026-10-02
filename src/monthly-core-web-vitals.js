@@ -4,19 +4,21 @@
 //
 // 1. Gets the current top 20 US landing pages by organic traffic from
 //    Semrush.
-// 2. Runs each through Google PageSpeed Insights (mobile) for real
-//    field-data LCP / INP / CLS.
+// 2. Runs each through a direct Lighthouse audit (mobile) for LCP / CLS and
+//    the render-blocking / image opportunities. No Google API, no key, no
+//    rate limit, every number is a lab run rather than real-user field
+//    data (see src/lib/lighthouse.js for why that tradeoff was made).
 // 3. Upserts each page as an item on HW Mobile & Performance.
 // 4. Rolls the pass rate into HW KPI Dashboard.
 
 import { boards, DEFAULT_ASSIGNEE_ID, SEMRUSH_DOMAIN, SEMRUSH_DATABASE, monthGroupName, isoDate } from "./config.js";
 import * as monday from "./lib/monday.js";
 import { getTopOrganicPages } from "./lib/semrush.js";
-import { getPageSpeed } from "./lib/pagespeed.js";
+import { getPageSpeed } from "./lib/lighthouse.js";
 import { readState, writeState } from "./lib/state.js";
 
 const TOP_N = 20;
-const DELAY_BETWEEN_REQUESTS_MS = 1500; // be polite to the shared PSI quota
+const DELAY_BETWEEN_REQUESTS_MS = 500; // let the previous Chrome instance fully exit
 
 async function sleep(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
@@ -52,7 +54,7 @@ async function main() {
 
   for (const [index, url] of urls.entries()) {
     console.log(`[${index + 1}/${urls.length}] Checking ${url}`);
-    const psi = await getPageSpeed(url, { strategy: "mobile" });
+    const psi = await getPageSpeed(url);
 
     if (psi.error) {
       console.warn(`  Failed: ${psi.error}`);
@@ -104,10 +106,6 @@ async function main() {
       lcpSeconds: psi.lcpSeconds,
       inpMs: psi.inpMs,
       clsValue: psi.clsValue,
-      labLcpSeconds: psi.labLcpSeconds,
-      dataSource: psi.dataSource,
-      usedFallbackOrigin: psi.usedFallbackOrigin,
-      usedLabData: psi.usedLabData,
       changedFromPass: previous === "Pass" && psi.status !== "Pass",
       changedToPass: previous !== "Pass" && psi.status === "Pass",
     });
@@ -131,7 +129,7 @@ async function main() {
     `${isoDate()}: CWV pass rate ${passRate}% (${passCount}/${urls.length}).`,
     improved.length ? `Improved to Pass: ${improved.join(", ")}` : null,
     regressed.length ? `Regressed from Pass: ${regressed.join(", ")}` : null,
-    failures.length ? `${failures.length} page(s) could not be checked (rate limited or errored).` : null,
+    failures.length ? `${failures.length} page(s) could not be checked (Lighthouse run failed).` : null,
   ].filter(Boolean).join(" ");
 
   const kpiColumnValues = {
@@ -152,25 +150,14 @@ async function main() {
 
   await writeState("cwv-state.json", state);
 
-  const originFallbackCount = results.filter((r) => r.usedFallbackOrigin).length;
-  const labOnlyCount = results.filter((r) => r.usedLabData).length;
-
-  // When a page's field LCP is a site-wide origin average, it's identical
-  // across every such page and useless for ranking, so rank those by their
-  // page-specific lab LCP instead.
-  const rankLcp = (r) => (r.usedFallbackOrigin || r.usedLabData ? r.labLcpSeconds : r.lcpSeconds) ?? 0;
-  const worst = [...results].sort((a, b) => rankLcp(b) - rankLcp(a)).slice(0, 5);
+  const worst = [...results].sort((a, b) => (b.lcpSeconds ?? 0) - (a.lcpSeconds ?? 0)).slice(0, 5);
 
   console.log("Monthly Core Web Vitals pull complete.");
   console.log(`  Pass rate: ${passRate}% (${passCount}/${urls.length})`);
   console.log(`  Failures: ${failures.length}`);
-  console.log(
-    `  Data source: ${urls.length - originFallbackCount - labOnlyCount} URL field data, ` +
-      `${originFallbackCount} origin field data (site avg), ${labOnlyCount} lab data only`
-  );
-  console.log("  Worst 5 by LCP (lab LCP used for ranking where field data is origin-level):");
+  console.log("  Worst 5 by LCP:");
   for (const page of worst) {
-    console.log(`    ${page.url}: field LCP ${page.lcpSeconds}s, lab LCP ${page.labLcpSeconds}s, source ${page.dataSource}, status ${page.status}`);
+    console.log(`    ${page.url}: LCP ${page.lcpSeconds}s, status ${page.status}`);
   }
   if (failures.length > 0) {
     console.log("  Pages that could not be checked this run (left with prior data):");

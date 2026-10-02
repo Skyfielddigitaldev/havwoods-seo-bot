@@ -12,5 +12,9 @@
     "monthly": "node src/monthly-core-web-vitals.js",
     "geo-ai-tracking": "node src/geo-ai-tracking.js"
   },
-  "license": "UNLICENSED"
+  "license": "UNLICENSED",
+  "dependencies": {
+    "chrome-launcher": "^1.2.2",
+    "lighthouse": "^13.5.0"
+  }
 }

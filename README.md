@@ -32,20 +32,21 @@ the workflows.
   Not Cited, based on whether a havwoods.com link shows up in the AI
   response's citations.
 - Upserts one row per prompt/engine pair onto **HW GEO / AI Search
-  Tracking**, keyed by item name so re-runs update in place rather than
-  duplicating rows.
+  Tracking**, keyed by a hidden Sync Key column (`promptId:engine`, a
+  stable id from Otterly) so re-runs always update the same row rather
+  than risking a duplicate if the prompt wording ever changes.
 
 **Monthly** (`.github/workflows/monthly-core-web-vitals.yml`, the 2nd of
 each month, 8:13am ET)
 - Gets the current top 20 US landing pages by organic traffic from Semrush.
-- Runs each through Google PageSpeed Insights (mobile) for real field-data
-  LCP / INP / CLS. Semrush's Site Audit does not carry true CWV field
-  data, PSI/CrUX is the authoritative source for that.
+- Runs each through a direct Lighthouse audit (mobile, headless Chrome in
+  the Action runner) for LCP, CLS, and the render-blocking / image
+  opportunities. No external API or key involved, see "About the Core Web
+  Vitals numbers" below for what this means for INP and for field vs. lab
+  data.
 - Upserts each page on **HW Mobile & Performance** with pass/fail status,
-  a Data Source flag, lab-run LCP/CLS, and flags for image compression,
-  lazy loading, and render-blocking work. See "About the Data Source
-  column" below, most Havwoods URLs do not get their own per-page field
-  data yet.
+  LCP/CLS, and flags for image compression, lazy loading, and
+  render-blocking work.
 - Updates the CWV pass rate on **HW KPI Dashboard**.
 
 Every item either job creates is assigned to Zevi Walsh (monday.com user
@@ -61,8 +62,10 @@ this repo:
 |---|---|
 | `SEMRUSH_API_KEY` | Semrush account API key (Semrush dashboard > Profile > API Keys) |
 | `MONDAY_API_TOKEN` | monday.com API token with write access to the Havwoods workspace (monday.com > Avatar > Admin > API, or Profile > Developers) |
-| `PAGESPEED_API_KEY` | Optional. PageSpeed Insights works without a key at low volume; a free key removes the shared rate limit. Get one at [developers.google.com/speed/docs/insights/v5/get-started](https://developers.google.com/speed/docs/insights/v5/get-started) |
 | `OTTERLY_API_KEY` | Otterly AI account API key, needed for the GEO/AI search tracking job (Otterly dashboard > Settings > API Keys) |
+
+The monthly Core Web Vitals job needs no secret at all. It runs Lighthouse
+directly against a headless Chrome the workflow installs on the runner.
 
 And one **repo variable** (Settings > Secrets and variables > Actions >
 Variables, not Secrets, it isn't sensitive):
@@ -71,31 +74,25 @@ Variables, not Secrets, it isn't sensitive):
 |---|---|
 | `SEMRUSH_PROJECT_ID` | The numeric Semrush project ID for Havwoods' Site Audit project. Needed for the weekly job's Site Audit call. See the warning below. |
 
-## About the Data Source column (Mobile & Performance)
+## About the Core Web Vitals numbers (Mobile & Performance)
 
-Google's CrUX field data (real Chrome users, the source Google actually
-ranks with) only exists per URL when that specific page gets enough
-traffic. Most Havwoods pages below the homepage do not clear that bar, so
-PSI falls back to origin-level data: the whole domain's aggregate CWV,
-repeated identically for every page that hits the fallback. That is
-expected PSI behavior, not a bug in this job.
+This job used to call Google PageSpeed Insights, which mixes real-user
+CrUX field data with a Lighthouse lab run. It now runs Lighthouse directly
+against a local headless Chrome instead, dropping the PSI dependency
+entirely (no API key, no shared quota, no rate limiting). The tradeoff:
 
-Each row's **Data Source** column says which kind of number it is showing:
-
-- **URL Field Data**: real per-page CrUX data. Trustworthy for ranking one
-  page's speed against another.
-- **Origin Field Data (Site Avg)**: the field LCP/INP/CLS columns are the
-  site-wide average, identical across every row with this flag. Still a
-  real user-experience number, just not page-specific.
-- **Lab Data Only**: no CrUX field data at all for the URL or the origin
-  (rare, usually a very new or very low-traffic page). The LCP/CLS shown
-  come from the Lighthouse lab run instead.
-
-The **Lab LCP (s)** and **Lab CLS** columns are filled in on every row
-regardless of Data Source. They come from a single simulated Lighthouse
-run, not real users, so treat them as directional, but they are always
-page-specific, which makes them the columns to sort by when Data Source
-says Origin Field Data.
+- Every LCP and CLS number on the board is now a single simulated
+  Lighthouse run, not real-user field data. Most Havwoods pages never had
+  enough traffic to get real per-page CrUX data from PSI anyway, so this
+  is a small loss in practice, but treat the numbers as directional, not
+  as what real visitors experienced.
+- The **INP** column is left blank. INP can only be measured from a real
+  user interacting with the page; a lab run has nothing to measure it
+  against. If per-page real-user INP matters, it would need pulling from
+  Google Search Console's Core Web Vitals report or CrUX directly, as a
+  separate job.
+- The **Data Source** column always reads "Lighthouse Lab Run" now, kept
+  on the board for consistency rather than removed.
 
 ## Important: verify the Site Audit integration before trusting it
 
@@ -123,8 +120,8 @@ implementation. Before relying on it in production:
    adjust that function to match. The Action log will show you the raw
    error/response to work from.
 
-Everything else (organic pages/positions from Semrush, PageSpeed
-Insights, monday.com) uses stable, documented public APIs and should work
+Everything else (organic pages/positions from Semrush, the Lighthouse
+run, monday.com) uses stable, documented interfaces and should work
 as-is.
 
 ## How state works (no database)

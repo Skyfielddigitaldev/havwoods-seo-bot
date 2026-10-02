@@ -1,11 +1,11 @@
 {
   "pages": {
-    "https://www.havwoods.com/us/selection/wood-wall-paneling/": "Poor",
+    "https://www.havwoods.com/us/selection/wood-wall-paneling/": "Needs Improvement",
     "https://www.havwoods.com/us/": "Poor",
     "https://www.havwoods.com/us/news/parquet-flooring-everything-you-need-to-know/": "Poor",
     "https://www.havwoods.com/us/news/wood-flooring-for-bathrooms/": "Poor",
     "https://www.havwoods.com/us/showrooms/havwoods-new-york-city-showroom/": "Poor",
-    "https://www.havwoods.com/us/selection/herringbone-flooring-blocks/": "Needs Improvement",
+    "https://www.havwoods.com/us/selection/herringbone-flooring-blocks/": "Poor",
     "https://www.havwoods.com/us/selection/chevron/": "Poor",
     "https://www.havwoods.com/us/selection/wide-plank-flooring/": "Poor",
     "https://www.havwoods.com/us/news/what-is-the-best-wood-for-hardwood-floors/": "Poor",
@@ -20,8 +20,8 @@
     "https://www.havwoods.com/int/case-studies/matches-fashion/": "Poor",
     "https://www.havwoods.com/us/selection/narrow-plank-flooring/": "Needs Improvement",
     "https://www.havwoods.com/us/selection/free-samples/": "Pass",
-    "https://www.havwoods.com/us/selection/parquet-flooring/": "Needs Improvement",
-    "https://www.havwoods.com/us/selection/grey-wood-floors/": "Poor",
+    "https://www.havwoods.com/us/selection/parquet-flooring/": "Poor",
+    "https://www.havwoods.com/us/selection/grey-wood-floors/": "Needs Improvement",
     "https://www.havwoods.com/us/selection/flooring/": "Poor",
     "https://www.havwoods.com/us/selection/cabinetry-and-joinery/": "Poor",
     "https://www.havwoods.com/us/selection/wood-for-walls-and-ceilings/": "Poor",
@@ -36,6 +36,21 @@
     "https://www.havwoods.com/us/selection/geometric-and-panel-wood-floors/": "Poor",
     "https://www.havwoods.com/us/selection/end-grain/": "Poor",
     "https://www.havwoods.com/us/selection/mansion-weave-pattern-wood-flooring/": "Poor",
-    "https://www.havwoods.com/us/selection/medium-plank-flooring/": "Poor"
+    "https://www.havwoods.com/us/selection/medium-plank-flooring/": "Poor",
+    "https://www.havwoods.com/us/selection/mosaic-wood-patterns/": "Poor",
+    "https://www.havwoods.com/us/selection/plank-wood-floors/": "Needs Improvement",
+    "https://www.havwoods.com/us/shop-by-pattern/": "Poor",
+    "https://www.havwoods.com/us/selection/versailles-and-other-panels/": "Needs Improvement",
+    "https://www.havwoods.com/us/selection/walnut/": "Poor",
+    "https://www.havwoods.com/us/selection/ash-flooring/": "Needs Improvement",
+    "https://www.havwoods.com/us/selection/dark-wood-floors/": "Needs Improvement",
+    "https://www.havwoods.com/us/selection/light-wood-floors/": "Needs Improvement",
+    "https://www.havwoods.com/us/selection/medium-wood-floors/": "Poor",
+    "https://www.havwoods.com/us/selection/auburn-flooring/": "Poor",
+    "https://www.havwoods.com/us/selection/blonde-flooring/": "Poor",
+    "https://www.havwoods.com/us/selection/brunette-flooring/": "Needs Improvement",
+    "https://www.havwoods.com/us/selection/cocoa-flooring/": "Needs Improvement",
+    "https://www.havwoods.com/us/selection/platinum-flooring/": "Poor",
+    "https://www.havwoods.com/us/selection/smoky-grey-flooring/": "Needs Improvement"
   }
 }

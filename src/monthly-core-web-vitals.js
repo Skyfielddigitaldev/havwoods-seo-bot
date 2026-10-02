@@ -3,22 +3,37 @@
 // month.
 //
 // 1. Gets the current top 20 US landing pages by organic traffic from
-//    Semrush.
-// 2. Runs each through a direct Lighthouse audit (mobile) for LCP / CLS and
-//    the render-blocking / image opportunities. No Google API, no key, no
-//    rate limit, every number is a lab run rather than real-user field
-//    data (see src/lib/lighthouse.js for why that tradeoff was made).
+//    Semrush, PLUS any brand-new page from the sitemap that has never been
+//    checked before (so a page with zero traffic yet still gets caught,
+//    not just pages that already rank).
+// 2. Runs each through a direct Lighthouse audit (mobile) for LCP / CLS /
+//    accessibility and the render-blocking / image opportunities. No
+//    Google API, no key, no rate limit, every number is a lab run rather
+//    than real-user field data (see src/lib/lighthouse.js for why that
+//    tradeoff was made).
 // 3. Upserts each page as an item on HW Mobile & Performance.
 // 4. Rolls the pass rate into HW KPI Dashboard.
 
 import { boards, DEFAULT_ASSIGNEE_ID, SEMRUSH_DOMAIN, SEMRUSH_DATABASE, monthGroupName, isoDate } from "./config.js";
 import * as monday from "./lib/monday.js";
 import { getTopOrganicPages } from "./lib/semrush.js";
+import { getAllSitePages } from "./lib/sitemap.js";
 import { getPageSpeed } from "./lib/lighthouse.js";
 import { readState, writeState } from "./lib/state.js";
 
 const TOP_N = 20;
+// Cap how many brand-new (zero-traffic) sitemap pages get added per run, so
+// a big batch of new product pages doesn't blow up the job's runtime. Any
+// excess rolls into next month's run since they stay "new" until checked.
+const MAX_NEW_PAGES_PER_RUN = 15;
 const DELAY_BETWEEN_REQUESTS_MS = 500; // let the previous Chrome instance fully exit
+
+// Individual product detail pages are too numerous (1000+) and too
+// low-value individually to track one-by-one here; the collection/category
+// pages that list and link to them matter far more for CWV monitoring.
+function isTrackablePage(pathname) {
+  return !pathname.includes("/products/");
+}
 
 async function sleep(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
@@ -30,13 +45,45 @@ async function main() {
   const state = await readState("cwv-state.json", { pages: {} });
 
   const topPages = await getTopOrganicPages(SEMRUSH_DOMAIN, { database: SEMRUSH_DATABASE });
-  const urls = topPages.slice(0, TOP_N).map((p) => p.url);
-  console.log(`Top ${urls.length} landing pages pulled from Semrush.`);
+  const topUrls = topPages.slice(0, TOP_N).map((p) => p.url);
+  console.log(`Top ${topUrls.length} landing pages pulled from Semrush.`);
 
-  const existingItems = await monday.getBoardItems(boards.mobilePerformance.id, {
-    groupId: boards.mobilePerformance.top20GroupId,
-    columnIds: [boards.mobilePerformance.columns.pageUrl],
-  });
+  let newUrls = [];
+  try {
+    const sitemapUrls = await getAllSitePages({ pathPrefix: "/us/" });
+    const trackedAlready = new Set([...topUrls, ...Object.keys(state.pages)]);
+    newUrls = sitemapUrls
+      .filter((url) => {
+        try {
+          return isTrackablePage(new URL(url).pathname) && !trackedAlready.has(url);
+        } catch {
+          return false;
+        }
+      })
+      .slice(0, MAX_NEW_PAGES_PER_RUN);
+    console.log(
+      `Sitemap crawl found ${sitemapUrls.length} US page(s); ${newUrls.length} brand-new page(s) added this run.`
+    );
+  } catch (err) {
+    console.warn(`Sitemap crawl failed, continuing with Semrush top pages only: ${err.message}`);
+  }
+
+  const newUrlSet = new Set(newUrls);
+  const urls = [...topUrls, ...newUrls];
+
+  // Pull existing items from both groups, since a page can live in either
+  // (new pages move into the Top 20 group naturally once they start
+  // ranking; until then they stay put, matched the same way by URL).
+  const existingItems = [
+    ...(await monday.getBoardItems(boards.mobilePerformance.id, {
+      groupId: boards.mobilePerformance.top20GroupId,
+      columnIds: [boards.mobilePerformance.columns.pageUrl],
+    })),
+    ...(await monday.getBoardItems(boards.mobilePerformance.id, {
+      groupId: boards.mobilePerformance.newPagesGroupId,
+      columnIds: [boards.mobilePerformance.columns.pageUrl],
+    })),
+  ];
   const existingByUrl = new Map();
   for (const item of existingItems) {
     const urlCol = item.column_values.find((c) => c.id === boards.mobilePerformance.columns.pageUrl);
@@ -85,17 +132,34 @@ async function main() {
       [boards.mobilePerformance.columns.dataSource]: monday.columnValue.status(psi.dataSource),
       [boards.mobilePerformance.columns.labLcp]: monday.columnValue.numbers(psi.labLcpSeconds),
       [boards.mobilePerformance.columns.labCls]: monday.columnValue.numbers(psi.labClsValue),
+      [boards.mobilePerformance.columns.accessibilityScore]: monday.columnValue.numbers(psi.accessibilityScore),
+      [boards.mobilePerformance.columns.accessibilityIssues]: monday.columnValue.text(
+        psi.accessibilityFindings.length ? psi.accessibilityFindings.join("; ") : "None found"
+      ),
+      [boards.mobilePerformance.columns.adaFixNeeded]: monday.columnValue.status(psi.adaStatus),
     };
+
+    const needsAnyFix =
+      psi.opportunities.imageOptimization || psi.opportunities.lazyLoading ||
+      psi.opportunities.renderBlocking || psi.adaStatus !== "Done";
 
     const existingItemId = existingByUrl.get(url);
     if (existingItemId) {
+      // Review Status is deliberately left out of this update: once a human
+      // has moved it off "Needs Review" (e.g. to Approved), a re-run must
+      // not reset it, even if the underlying fix flags change.
       await monday.changeColumnValues(boards.mobilePerformance.id, existingItemId, columnValues);
     } else {
       await monday.createItem(
         boards.mobilePerformance.id,
-        boards.mobilePerformance.top20GroupId,
+        newUrlSet.has(url) ? boards.mobilePerformance.newPagesGroupId : boards.mobilePerformance.top20GroupId,
         pageNameFromUrl(url),
-        columnValues
+        {
+          ...columnValues,
+          [boards.mobilePerformance.columns.reviewStatus]: monday.columnValue.status(
+            needsAnyFix ? "Needs Review" : "No Action Needed"
+          ),
+        }
       );
     }
 
@@ -106,6 +170,9 @@ async function main() {
       lcpSeconds: psi.lcpSeconds,
       inpMs: psi.inpMs,
       clsValue: psi.clsValue,
+      accessibilityScore: psi.accessibilityScore,
+      adaStatus: psi.adaStatus,
+      isNewPage: newUrlSet.has(url),
       changedFromPass: previous === "Pass" && psi.status !== "Pass",
       changedToPass: previous !== "Pass" && psi.status === "Pass",
     });
@@ -125,10 +192,14 @@ async function main() {
 
   const regressed = results.filter((r) => r.changedFromPass).map((r) => r.url);
   const improved = results.filter((r) => r.changedToPass).map((r) => r.url);
+  const newPageCount = results.filter((r) => r.isNewPage).length;
+  const adaIssueCount = results.filter((r) => r.adaStatus !== "Done").length;
   const notesLines = [
     `${isoDate()}: CWV pass rate ${passRate}% (${passCount}/${urls.length}).`,
     improved.length ? `Improved to Pass: ${improved.join(", ")}` : null,
     regressed.length ? `Regressed from Pass: ${regressed.join(", ")}` : null,
+    newPageCount ? `${newPageCount} brand-new page(s) added from the sitemap crawl.` : null,
+    adaIssueCount ? `${adaIssueCount} page(s) have an accessibility issue flagged.` : null,
     failures.length ? `${failures.length} page(s) could not be checked (Lighthouse run failed).` : null,
   ].filter(Boolean).join(" ");
 

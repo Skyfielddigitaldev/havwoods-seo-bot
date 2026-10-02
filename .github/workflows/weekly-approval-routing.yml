@@ -1,0 +1,30 @@
+name: Weekly Approval Routing
+
+on:
+  schedule:
+    # 10:00am America/New_York = 14:00 UTC, every Thursday — a few days
+    # after Monday's crawls, giving the team time to review and approve
+    # items before anything gets routed to HW Tasks.
+    - cron: "0 14 * * 4"
+  workflow_dispatch: {} # lets you trigger a manual run from the Actions tab (e.g. right after approving something)
+
+concurrency:
+  group: weekly-approval-routing
+  cancel-in-progress: false
+
+jobs:
+  run:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repo
+        uses: actions/checkout@v4
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Run approval-routing sweep
+        env:
+          MONDAY_API_TOKEN: ${{ secrets.MONDAY_API_TOKEN }}
+        run: npm run approval-routing

@@ -4,12 +4,15 @@
 // 1. Pulls Site Audit issues from Semrush (404s, redirect chains, broken
 //    internal links, indexing issues, duplicate content, structured data
 //    errors) and hreflang/canonical problems.
-// 2. Logs new issues to the HW Technical SEO board (skips ones already
-//    logged and still open).
-// 3. Routes dev/CMS-level fixes to HW Tasks > Recurring Monthly Tasks.
+// 2. Logs new issues to the HW Technical SEO board as "Needs Review" (skips
+//    ones already logged and still open). The issue's fingerprint
+//    (category::url) is also written to a visible Issue ID column so dedup
+//    is checkable on the board itself, not just in the local state file.
+// 3. A human reviewer triages each issue; the separate approval-routing job
+//    (src/approval-routing.js) picks up anything marked "Approved" that
+//    needs a developer and creates the HW Tasks item for it.
 // 4. Checks priority category pages for page-2-to-page-1 movement.
 // 5. Updates the HW KPI Dashboard's row for the current month.
-// 6. Posts a summary update on the newest logged item.
 
 import { boards, DEFAULT_ASSIGNEE_ID, SEMRUSH_DOMAIN, SEMRUSH_DATABASE, priorityCategories, monthGroupName, isoDate } from "./config.js";
 import * as monday from "./lib/monday.js";
@@ -26,16 +29,6 @@ const ISSUE_TYPE_LABELS = {
   hreflang: "Hreflang Issue",
   canonical: "Canonical Issue",
 };
-
-// Issue categories that need a developer/CMS-template fix rather than a
-// content-editor fix. Adjust this list as you learn the CMS's real
-// limitations.
-const DEV_NEEDED_CATEGORIES = new Set([
-  "redirect_chain",
-  "structured_data",
-  "hreflang",
-  "canonical",
-]);
 
 function fingerprint(issue) {
   return `${issue.category}::${issue.url}`;
@@ -61,7 +54,6 @@ async function main() {
   }
 
   const newlyLogged = [];
-  const pushedToTasks = [];
 
   for (const issue of issues) {
     const fp = fingerprint(issue);
@@ -72,12 +64,19 @@ async function main() {
     const issueLabel = ISSUE_TYPE_LABELS[issue.category] ?? issue.category;
     const itemName = `${issueLabel}: ${issue.url}`;
 
+    // Issues land as "Needs Review" rather than being worked (or routed to
+    // devs) immediately. A human reviewer triages each one; the separate
+    // approval-routing job picks up anything marked "Approved" that needs a
+    // developer and creates the HW Tasks item for it. See
+    // src/approval-routing.js and the README's approval workflow section.
     const itemId = await monday.createItem(boards.technicalSeo.id, groupId, itemName, {
       [boards.technicalSeo.columns.issueType]: monday.columnValue.status(issueLabel),
       [boards.technicalSeo.columns.crawlDate]: monday.columnValue.date(isoDate()),
       [boards.technicalSeo.columns.linkToSemrush]: monday.columnValue.link(issue.reportUrl ?? issue.url),
       [boards.technicalSeo.columns.assignee]: monday.columnValue.people([DEFAULT_ASSIGNEE_ID]),
-      [boards.technicalSeo.columns.issuesFixed]: monday.columnValue.status("Working on It"),
+      [boards.technicalSeo.columns.issuesFixed]: monday.columnValue.status("Needs Review"),
+      [boards.technicalSeo.columns.issueId]: monday.columnValue.text(fp),
+      [boards.technicalSeo.columns.routedToDev]: monday.columnValue.checkbox(false),
       ...(issue.category === "hreflang" || issue.category === "canonical"
         ? { [boards.technicalSeo.columns.usVersion]: monday.columnValue.status("Needs Fix") }
         : {}),
@@ -89,28 +88,8 @@ async function main() {
       [boards.technicalSeo.subitemColumns.issueFixed]: monday.columnValue.status("Working on it"),
     });
 
-    state.loggedIssues[fp] = { itemId, status: "Working on It", loggedAt: isoDate() };
+    state.loggedIssues[fp] = { itemId, status: "Needs Review", loggedAt: isoDate() };
     newlyLogged.push({ ...issue, itemId, label: issueLabel });
-
-    if (DEV_NEEDED_CATEGORIES.has(issue.category)) {
-      const taskId = await monday.createItem(
-        boards.tasks.id,
-        boards.tasks.recurringGroupId,
-        `Fix: ${issueLabel}: ${issue.url}`,
-        {
-          [boards.tasks.columns.assignee]: monday.columnValue.people([DEFAULT_ASSIGNEE_ID]),
-          [boards.tasks.columns.priority]: monday.columnValue.status(
-            issue.affectsPriorityPage ? "High" : "Medium"
-          ),
-          [boards.tasks.columns.source]: monday.columnValue.status("Semrush Weekly Crawl"),
-          [boards.tasks.columns.relatedItem]: monday.columnValue.link(
-            `https://skyfield-digital.monday.com/boards/${boards.technicalSeo.id}/pulses/${itemId}`,
-            issueLabel
-          ),
-        }
-      );
-      pushedToTasks.push(taskId);
-    }
   }
 
   // Priority category page tracking: one row per page on HW Priority Pages
@@ -141,8 +120,7 @@ async function main() {
   // entirely in the KPI Dashboard's Notes column, so it's on the board
   // itself rather than in the activity feed.
   const notesLines = [
-    `${isoDate()}: ${newlyLogged.length} new issue(s) logged, ${openIssueCount} open total.`,
-    pushedToTasks.length ? `${pushedToTasks.length} pushed to HW Tasks for dev/CMS action.` : null,
+    `${isoDate()}: ${newlyLogged.length} new issue(s) logged as Needs Review, ${openIssueCount} open total.`,
     newlyLogged.length
       ? Object.entries(countBy(newlyLogged, (i) => i.label))
           .map(([label, count]) => `${label}: ${count}`)
@@ -171,7 +149,6 @@ async function main() {
 
   console.log("Weekly technical SEO sync complete.");
   console.log(`  New issues logged: ${newlyLogged.length}`);
-  console.log(`  Pushed to HW Tasks: ${pushedToTasks.length}`);
   console.log(`  Page 2 -> page 1 moves: ${p2p1Moves}`);
   if (siteAuditError) console.log(`  Site Audit error: ${siteAuditError}`);
   if (positionError) console.log(`  Position tracking error: ${positionError}`);

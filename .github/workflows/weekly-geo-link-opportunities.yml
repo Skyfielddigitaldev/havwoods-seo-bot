@@ -1,0 +1,31 @@
+name: Weekly GEO Link Opportunities
+
+on:
+  schedule:
+    # 8:27am America/New_York = 12:27 UTC, every Monday. Offset from the
+    # other weekly jobs so they don't start at the exact same minute on the
+    # shared runner pool.
+    - cron: "27 12 * * 1"
+  workflow_dispatch: {} # lets you trigger a manual test run from the Actions tab
+
+concurrency:
+  group: weekly-geo-link-opportunities
+  cancel-in-progress: false
+
+jobs:
+  run:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repo
+        uses: actions/checkout@v4
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Run GEO link-opportunity pull
+        env:
+          OTTERLY_API_KEY: ${{ secrets.OTTERLY_API_KEY }}
+          MONDAY_API_TOKEN: ${{ secrets.MONDAY_API_TOKEN }}
+        run: npm run geo-link-opportunities

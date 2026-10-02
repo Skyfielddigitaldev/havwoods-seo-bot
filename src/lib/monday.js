@@ -185,4 +185,5 @@ export const columnValue = {
   link: (url, text) => ({ url, text: text ?? url }),
   text: (value) => String(value),
   numbers: (value) => (value === null || value === undefined ? "" : String(value)),
+  checkbox: (checked) => ({ checked: checked ? "true" : "false" }),
 };

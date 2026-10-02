@@ -28,6 +28,8 @@ export const boards = {
       linkToSemrush: "link_mkrwr0zt",
       issuesFixed: "status_Mjj4dlIM",
       assignee: "multiple_person_mm7mx792",
+      issueId: "text_mm7r6xxk",
+      routedToDev: "boolean_mm7r8jjw",
     },
     subitemColumns: {
       pageLink: "link_mkrwwn7r",
@@ -61,6 +63,7 @@ export const boards = {
   mobilePerformance: {
     id: 18433047732,
     top20GroupId: "group_mm7mvdn",
+    newPagesGroupId: "topics", // "New Pages Discovered" group, for sitemap-only (zero-traffic) pages
     columns: {
       pageUrl: "link_mm7m2xtm",
       assignee: "multiple_person_mm7mty8n",
@@ -76,6 +79,11 @@ export const boards = {
       dataSource: "color_mm7n42g0",
       labLcp: "numeric_mm7nw4b7",
       labCls: "numeric_mm7njm6c",
+      accessibilityScore: "numeric_mm7rj5qt",
+      accessibilityIssues: "long_text_mm7rjdbs",
+      adaFixNeeded: "color_mm7r24hd",
+      reviewStatus: "color_mm7rwyzp",
+      routedToDev: "boolean_mm7rfaa6",
     },
   },
   priorityPages: {
@@ -110,6 +118,53 @@ export const boards = {
       syncKey: "text_mm7r8w42",
     },
   },
+  // Manually-run backlink board. The bot only writes to the "GEO
+  // Suggestions (Bot)" group with Review Status "Needs Review"; the
+  // SEO-sourced rows and the month groups stay entirely human-managed.
+  offPageSeo: {
+    id: 8168231374,
+    botGroupId: "group_mm7rspyq", // "GEO Suggestions (Bot)"
+    columns: {
+      assignee: "multiple_person_mm2ex4kz",
+      websiteUrl: "website_url__1",
+      articleLink: "article_link__1",
+      linkType: "color_mm7r7n2d",
+      reviewStatus: "status__1", // "Backlink Progress" — reused for Needs Review / Approved too
+      notes: "long_text_mm7r118n",
+      dateSuggested: "date_mm7rfv8g",
+      syncKey: "text_mm7rzmga",
+    },
+  },
+  // Manually-run internal linking board. Same bot-group convention as
+  // offPageSeo above.
+  internalLinking: {
+    id: 8168232621,
+    botGroupId: "group_mm7r87js", // "GEO Suggestions (Bot)"
+    columns: {
+      assignee: "multiple_person_mm2e32pr",
+      linkType: "color_mm7r9nxp",
+      reviewStatus: "status_Mjj4dlIM", // "Internal Links" — reused for Needs Review / Approved too
+      targetPage: "link_mm7rqgzj",
+      notes: "long_text_mm7rcyv4",
+      dateSuggested: "date_mm7rz7pb",
+      syncKey: "text_mm7rr8bx",
+    },
+  },
+  geoContentSuggestions: {
+    id: 18433744120,
+    groupId: "topics", // "Weekly Suggestions"
+    columns: {
+      aiPlatform: "color_mm7rd4gw",
+      gapType: "color_mm7rc82q",
+      targetUrl: "link_mm7r5wbk",
+      newPageNeeded: "boolean_mm7rd6kj",
+      suggestedContent: "long_text_mm7rze6w",
+      reviewStatus: "color_mm7rtczr",
+      assignee: "multiple_person_mm7ryy4v",
+      dateSuggested: "date_mm7r7dx",
+      syncKey: "text_mm7rx546",
+    },
+  },
 };
 
 // Keyword matches used to guess a prompt's product category for the
@@ -136,6 +191,17 @@ export const priorityCategories = [
   { slug: "wide-plank", label: "Wide Plank" },
   { slug: "engineered", label: "Engineered" },
 ];
+
+// HW Technical SEO "Issue Type" labels that need a developer/CMS-template
+// fix rather than a content-editor fix. Used by approval-routing.js to
+// decide which "Approved" issues get pushed to HW Tasks. Adjust this list
+// as you learn the CMS's real limitations.
+export const devNeededIssueLabels = new Set([
+  "Redirect Chain",
+  "Structured Data Error",
+  "Hreflang Issue",
+  "Canonical Issue",
+]);
 
 export function monthGroupName(date = new Date()) {
   return `${date.toLocaleString("en-US", { month: "long" })} ${date.getFullYear()}`;

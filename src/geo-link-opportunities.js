@@ -1,14 +1,17 @@
 // Weekly GEO link-opportunity pull: turns Otterly AI prompt/citation data
-// into draft backlink and internal-link suggestions. Run by
-// .github/workflows/weekly-geo-link-opportunities.yml.
+// into draft backlink and internal-link suggestions. Runs once per region
+// (US or UK), selected by the REGION env var — see .github/workflows/
+// weekly-geo-link-opportunities.yml (US) and
+// weekly-geo-link-opportunities-uk.yml (UK). The UK run is a no-op until
+// OTTERLY_REPORT_ID_UK is set (see src/config.js).
 //
 // This is a suggestion engine, not an auto-publisher: every row it creates
 // lands with Review Status "Needs Review" on a manually-run board
-// (HW Off-Page SEO or HW Internal Linking), in a dedicated "GEO Suggestions
-// (Bot)" group so it never touches the human-curated monthly groups. A
-// Skyfield/Havwoods reviewer approves (or rejects) each one; the bot never
-// flips a row's Review Status on a re-run once it has been set, so it can't
-// undo a human decision.
+// (HW Off-Page SEO or HW Internal Linking, or their UK twins), in a
+// dedicated "GEO Suggestions (Bot)" group so it never touches the
+// human-curated monthly groups. A Skyfield/Havwoods reviewer approves (or
+// rejects) each one; the bot never flips a row's Review Status on a re-run
+// once it has been set, so it can't undo a human decision.
 //
 // Backlink suggestions (HW Off-Page SEO): when a competitor is cited
 // instead of Havwoods for a prompt that reads as either a "best of"
@@ -25,9 +28,14 @@
 // deep content analysis. They are meant to surface candidates for a human
 // to confirm, not to be perfectly precise.
 
-import { boards, BRAND_DOMAIN, OTTERLY_REPORT_ID, OTTERLY_COUNTRY, promptCategoryKeywords, isoDate } from "./config.js";
+import { boardsByRegion, regions, resolveRegion, otterlyConfigFor, BRAND_DOMAIN, promptCategoryKeywords, isoDate } from "./config.js";
 import * as monday from "./lib/monday.js";
 import { listPrompts, listAiResponses, latestRunPerEngine, classifyResponse, ENGINE_LABELS } from "./lib/otterly.js";
+
+const REGION = resolveRegion();
+const regionConfig = regions[REGION];
+const boards = boardsByRegion[REGION];
+const otterly = otterlyConfigFor(REGION);
 
 const WINDOW_DAYS = 14;
 
@@ -74,10 +82,18 @@ function guessPriorityCategory(promptText) {
 }
 
 async function main() {
-  console.log(`GEO link-opportunity pull starting for ${BRAND_DOMAIN} (${isoDate()})`);
+  if (!otterly) {
+    console.log(
+      `GEO link-opportunity pull skipped [${regionConfig.label}]: OTTERLY_REPORT_ID_UK is not set yet. ` +
+        `Set it once the UK Otterly brand report exists and this job will start running automatically.`
+    );
+    return;
+  }
+
+  console.log(`GEO link-opportunity pull starting for ${BRAND_DOMAIN} [${regionConfig.label}] (${isoDate()})`);
   const startDate = dateDaysAgo(WINDOW_DAYS);
   const endDate = isoDate();
-  const prompts = await listPrompts(OTTERLY_REPORT_ID, { startDate, endDate, country: OTTERLY_COUNTRY });
+  const prompts = await listPrompts(otterly.reportId, { startDate, endDate, country: otterly.country });
   console.log(`${prompts.length} prompt(s) configured on the Otterly brand report.`);
 
   const [existingBacklinkItems, existingInternalLinkItems] = await Promise.all([
@@ -110,7 +126,7 @@ async function main() {
   for (const prompt of prompts) {
     let responses;
     try {
-      responses = await listAiResponses(OTTERLY_REPORT_ID, prompt.id, { startDate, endDate, country: OTTERLY_COUNTRY });
+      responses = await listAiResponses(otterly.reportId, prompt.id, { startDate, endDate, country: otterly.country });
     } catch (err) {
       failures.push({ prompt: prompt.prompt, error: err.message });
       continue;
@@ -205,7 +221,7 @@ async function main() {
     }
   }
 
-  console.log("GEO link-opportunity pull complete.");
+  console.log(`GEO link-opportunity pull complete [${regionConfig.label}].`);
   console.log(`  Backlink suggestions: ${backlinksSuggested} new, ${backlinksUpdated} refreshed.`);
   console.log(`  Internal link suggestions: ${internalLinksSuggested} new, ${internalLinksUpdated} refreshed.`);
   if (failures.length > 0) {

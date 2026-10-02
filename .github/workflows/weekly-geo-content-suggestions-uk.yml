@@ -1,0 +1,33 @@
+name: Weekly GEO Content Suggestions (UK)
+
+on:
+  schedule:
+    # 8:37am America/New_York = 12:37 UTC, every Monday. Offset from the US
+    # twin (8:34am) so they don't start at the exact same minute on the
+    # shared runner pool.
+    - cron: "37 12 * * 1"
+  workflow_dispatch: {} # lets you trigger a manual test run from the Actions tab
+
+concurrency:
+  group: weekly-geo-content-suggestions-uk
+  cancel-in-progress: false
+
+jobs:
+  run:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repo
+        uses: actions/checkout@v4
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Run GEO content-gap pull (UK)
+        env:
+          REGION: uk
+          OTTERLY_API_KEY: ${{ secrets.OTTERLY_API_KEY }}
+          OTTERLY_REPORT_ID_UK: ${{ secrets.OTTERLY_REPORT_ID_UK }}
+          MONDAY_API_TOKEN: ${{ secrets.MONDAY_API_TOKEN }}
+        run: npm run geo-content-suggestions:uk

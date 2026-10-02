@@ -1,22 +1,32 @@
-// Weekly GEO content-gap pull: for every Otterly prompt where Havwoods is
-// not cited anywhere (or a competitor is cited instead), suggests which
-// existing Havwoods page should get expanded content to compete for that
-// prompt, or flags that a new page is needed. Run by
-// .github/workflows/weekly-geo-content-suggestions.yml.
+// Weekly GEO content-gap pull. Runs once per region (US or UK), selected by
+// the REGION env var — see .github/workflows/weekly-geo-content-
+// suggestions.yml (US) and weekly-geo-content-suggestions-uk.yml (UK). The
+// UK run is a no-op until OTTERLY_REPORT_ID_UK is set (see src/config.js).
+//
+// For every Otterly prompt where Havwoods is not cited anywhere (or a
+// competitor is cited instead), suggests which existing Havwoods page
+// should get expanded content to compete for that prompt, or flags that a
+// new page is needed.
 //
 // Like the link-opportunities job, this only ever creates/updates rows with
-// Review Status "Needs Review" on HW GEO Content Suggestions — it never
-// writes to the live site. A re-run never touches Review Status on an
-// existing row, so it can't undo a human's Approved/Done decision.
+// Review Status "Needs Review" on this region's HW GEO Content Suggestions
+// board — it never writes to the live site. A re-run never touches Review
+// Status on an existing row, so it can't undo a human's Approved/Done
+// decision.
 //
-// Target-page matching reuses HW Priority Pages Performance as its source
-// of truth for "which URL currently represents each product category" —
-// that board is already kept current by the weekly technical SEO job — so
-// this stays correct without hardcoding URLs here.
+// Target-page matching reuses this region's HW Priority Pages Performance
+// as its source of truth for "which URL currently represents each product
+// category" — that board is already kept current by the weekly technical
+// SEO job — so this stays correct without hardcoding URLs here.
 
-import { boards, BRAND_DOMAIN, OTTERLY_REPORT_ID, OTTERLY_COUNTRY, promptCategoryKeywords, isoDate } from "./config.js";
+import { boardsByRegion, regions, resolveRegion, otterlyConfigFor, BRAND_DOMAIN, promptCategoryKeywords, isoDate } from "./config.js";
 import * as monday from "./lib/monday.js";
 import { listPrompts, listAiResponses, latestRunPerEngine, classifyResponse, ENGINE_LABELS } from "./lib/otterly.js";
+
+const REGION = resolveRegion();
+const regionConfig = regions[REGION];
+const boards = boardsByRegion[REGION];
+const otterly = otterlyConfigFor(REGION);
 
 const WINDOW_DAYS = 14;
 
@@ -57,10 +67,18 @@ async function loadCategoryPageMap() {
 }
 
 async function main() {
-  console.log(`GEO content-gap pull starting for ${BRAND_DOMAIN} (${isoDate()})`);
+  if (!otterly) {
+    console.log(
+      `GEO content-gap pull skipped [${regionConfig.label}]: OTTERLY_REPORT_ID_UK is not set yet. ` +
+        `Set it once the UK Otterly brand report exists and this job will start running automatically.`
+    );
+    return;
+  }
+
+  console.log(`GEO content-gap pull starting for ${BRAND_DOMAIN} [${regionConfig.label}] (${isoDate()})`);
   const startDate = dateDaysAgo(WINDOW_DAYS);
   const endDate = isoDate();
-  const prompts = await listPrompts(OTTERLY_REPORT_ID, { startDate, endDate, country: OTTERLY_COUNTRY });
+  const prompts = await listPrompts(otterly.reportId, { startDate, endDate, country: otterly.country });
   console.log(`${prompts.length} prompt(s) configured on the Otterly brand report.`);
 
   const categoryPageMap = await loadCategoryPageMap();
@@ -83,7 +101,7 @@ async function main() {
   for (const prompt of prompts) {
     let responses;
     try {
-      responses = await listAiResponses(OTTERLY_REPORT_ID, prompt.id, { startDate, endDate, country: OTTERLY_COUNTRY });
+      responses = await listAiResponses(otterly.reportId, prompt.id, { startDate, endDate, country: otterly.country });
     } catch (err) {
       failures.push({ prompt: prompt.prompt, error: err.message });
       continue;
@@ -146,7 +164,7 @@ async function main() {
     }
   }
 
-  console.log("GEO content-gap pull complete.");
+  console.log(`GEO content-gap pull complete [${regionConfig.label}].`);
   console.log(`  New suggestions: ${suggested}, refreshed: ${updated}, already cited (skipped): ${skippedAlreadyCited}`);
   if (failures.length > 0) {
     console.log(`  ${failures.length} prompt(s) could not be checked:`);

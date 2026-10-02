@@ -37,6 +37,22 @@ export const BRAND_DOMAIN = "havwoods.com";
 export const OTTERLY_REPORT_ID = "01M3CPWJ4THFDA5GXH9ZDEFAQ8";
 export const OTTERLY_COUNTRY = "us";
 
+// The UK Otterly brand report doesn't exist yet. Once it's set up, put its
+// report id in the OTTERLY_REPORT_ID_UK repo secret — no code change
+// needed. Until then this stays null and the GEO jobs skip the UK run with
+// a clear log line instead of failing.
+export const OTTERLY_REPORT_ID_UK = process.env.OTTERLY_REPORT_ID_UK || null;
+
+// Resolves the Otterly report id + country for a region's GEO pull. Returns
+// null when that region's report isn't configured yet, so callers can skip
+// cleanly rather than crash.
+export function otterlyConfigFor(region) {
+  if (region === "uk") {
+    return OTTERLY_REPORT_ID_UK ? { reportId: OTTERLY_REPORT_ID_UK, country: "uk" } : null;
+  }
+  return { reportId: OTTERLY_REPORT_ID, country: OTTERLY_COUNTRY };
+}
+
 // Column ids for the four Semrush-sourced boards. monday.com's
 // duplicate_board_with_structure mutation (used to create the UK boards
 // from the original US ones) keeps the same column ids on the copy, so one
@@ -101,6 +117,56 @@ const kpiDashboardColumns = {
   notes: "long_text_mm7mxmvr",
 };
 
+// Column ids for the four Otterly-sourced GEO boards. Same deal as the
+// Semrush boards above: the UK boards are structural duplicates of the US
+// ones, so one column map covers both.
+const geoAiTrackingColumns = {
+  category: "color_mm7mj9x9",
+  aiPlatform: "color_mm7mj9dj",
+  havwoodsCited: "color_mm7mh7bk",
+  citedUrl: "link_mm7msjyg",
+  lastChecked: "date_mm7mjrmy",
+  notes: "long_text_mm7mvmpg",
+  citedPageType: "color_mm7m9pr0",
+  // Stable promptId:engine key, hidden from normal view, used to match
+  // existing rows on re-runs instead of the human-readable item name
+  // (which could drift if Otterly ever reworks a prompt's wording).
+  syncKey: "text_mm7r8w42",
+};
+
+const offPageSeoColumns = {
+  assignee: "multiple_person_mm2ex4kz",
+  websiteUrl: "website_url__1",
+  articleLink: "article_link__1",
+  linkType: "color_mm7r7n2d",
+  reviewStatus: "status__1", // "Backlink Progress" — reused for Needs Review / Approved too
+  notes: "long_text_mm7r118n",
+  dateSuggested: "date_mm7rfv8g",
+  syncKey: "text_mm7rzmga",
+};
+
+const internalLinkingColumns = {
+  assignee: "multiple_person_mm2e32pr",
+  linkType: "color_mm7r9nxp",
+  reviewStatus: "status_Mjj4dlIM", // "Internal Links" — reused for Needs Review / Approved too
+  targetPage: "link_mm7rqgzj",
+  notes: "long_text_mm7rcyv4",
+  dateSuggested: "date_mm7rz7pb",
+  syncKey: "text_mm7rr8bx",
+};
+
+const geoContentSuggestionsColumns = {
+  aiPlatform: "color_mm7rd4gw",
+  gapType: "color_mm7rc82q",
+  targetUrl: "link_mm7r5wbk",
+  newPageNeeded: "boolean_mm7rd6kj",
+  suggestedContent: "long_text_mm7rze6w",
+  reviewStatus: "color_mm7rtczr",
+  assignee: "multiple_person_mm7ryy4v",
+  dateSuggested: "date_mm7r7dx",
+  syncKey: "text_mm7rx546",
+};
+
 // Per-region board ids and group ids for the four Semrush-sourced boards.
 // The UK boards were created by duplicating the US ones with
 // duplicate_board_with_structure, so their group ids happen to match too
@@ -130,6 +196,31 @@ export const boardsByRegion = {
       snapshotsGroupId: "group_mm7mgmd3",
       columns: kpiDashboardColumns,
     },
+    geoAiTracking: {
+      id: 18433047834,
+      groupId: "group_mm7mnesc", // "Starter Prompt Set (Oct 2026)"
+      columns: geoAiTrackingColumns,
+    },
+    // Manually-run backlink board. The bot only writes to the "GEO
+    // Suggestions (Bot)" group with Review Status "Needs Review"; the
+    // SEO-sourced rows and the month groups stay entirely human-managed.
+    offPageSeo: {
+      id: 8168231374,
+      botGroupId: "group_mm7rspyq", // "GEO Suggestions (Bot)"
+      columns: offPageSeoColumns,
+    },
+    // Manually-run internal linking board. Same bot-group convention as
+    // offPageSeo above.
+    internalLinking: {
+      id: 8168232621,
+      botGroupId: "group_mm7r87js", // "GEO Suggestions (Bot)"
+      columns: internalLinkingColumns,
+    },
+    geoContentSuggestions: {
+      id: 18433744120,
+      groupId: "topics", // "Weekly Suggestions"
+      columns: geoContentSuggestionsColumns,
+    },
   },
   uk: {
     technicalSeo: {
@@ -154,6 +245,26 @@ export const boardsByRegion = {
       snapshotsGroupId: "group_mm7mgmd3",
       columns: kpiDashboardColumns,
     },
+    geoAiTracking: {
+      id: 18433776446,
+      groupId: "group_mm7mnesc", // "Starter Prompt Set (Oct 2026)"
+      columns: geoAiTrackingColumns,
+    },
+    offPageSeo: {
+      id: 18433776471,
+      botGroupId: "group_mm7rspyq", // "GEO Suggestions (Bot)"
+      columns: offPageSeoColumns,
+    },
+    internalLinking: {
+      id: 18433776486,
+      botGroupId: "group_mm7r87js", // "GEO Suggestions (Bot)"
+      columns: internalLinkingColumns,
+    },
+    geoContentSuggestions: {
+      id: 18433776458,
+      groupId: "topics", // "Weekly Suggestions"
+      columns: geoContentSuggestionsColumns,
+    },
   },
 };
 
@@ -177,70 +288,10 @@ export const boards = {
       relatedItem: "link_mm7m4bvh",
     },
   },
-  geoAiTracking: {
-    id: 18433047834,
-    groupId: "group_mm7mnesc", // "Starter Prompt Set (Oct 2026)"
-    columns: {
-      category: "color_mm7mj9x9",
-      aiPlatform: "color_mm7mj9dj",
-      havwoodsCited: "color_mm7mh7bk",
-      citedUrl: "link_mm7msjyg",
-      lastChecked: "date_mm7mjrmy",
-      notes: "long_text_mm7mvmpg",
-      citedPageType: "color_mm7m9pr0",
-      // Stable promptId:engine key, hidden from normal view, used to match
-      // existing rows on re-runs instead of the human-readable item name
-      // (which could drift if Otterly ever reworks a prompt's wording).
-      syncKey: "text_mm7r8w42",
-    },
-  },
-  // Manually-run backlink board. The bot only writes to the "GEO
-  // Suggestions (Bot)" group with Review Status "Needs Review"; the
-  // SEO-sourced rows and the month groups stay entirely human-managed.
-  offPageSeo: {
-    id: 8168231374,
-    botGroupId: "group_mm7rspyq", // "GEO Suggestions (Bot)"
-    columns: {
-      assignee: "multiple_person_mm2ex4kz",
-      websiteUrl: "website_url__1",
-      articleLink: "article_link__1",
-      linkType: "color_mm7r7n2d",
-      reviewStatus: "status__1", // "Backlink Progress" — reused for Needs Review / Approved too
-      notes: "long_text_mm7r118n",
-      dateSuggested: "date_mm7rfv8g",
-      syncKey: "text_mm7rzmga",
-    },
-  },
-  // Manually-run internal linking board. Same bot-group convention as
-  // offPageSeo above.
-  internalLinking: {
-    id: 8168232621,
-    botGroupId: "group_mm7r87js", // "GEO Suggestions (Bot)"
-    columns: {
-      assignee: "multiple_person_mm2e32pr",
-      linkType: "color_mm7r9nxp",
-      reviewStatus: "status_Mjj4dlIM", // "Internal Links" — reused for Needs Review / Approved too
-      targetPage: "link_mm7rqgzj",
-      notes: "long_text_mm7rcyv4",
-      dateSuggested: "date_mm7rz7pb",
-      syncKey: "text_mm7rr8bx",
-    },
-  },
-  geoContentSuggestions: {
-    id: 18433744120,
-    groupId: "topics", // "Weekly Suggestions"
-    columns: {
-      aiPlatform: "color_mm7rd4gw",
-      gapType: "color_mm7rc82q",
-      targetUrl: "link_mm7r5wbk",
-      newPageNeeded: "boolean_mm7rd6kj",
-      suggestedContent: "long_text_mm7rze6w",
-      reviewStatus: "color_mm7rtczr",
-      assignee: "multiple_person_mm7ryy4v",
-      dateSuggested: "date_mm7r7dx",
-      syncKey: "text_mm7rx546",
-    },
-  },
+  geoAiTracking: boardsByRegion.us.geoAiTracking,
+  offPageSeo: boardsByRegion.us.offPageSeo,
+  internalLinking: boardsByRegion.us.internalLinking,
+  geoContentSuggestions: boardsByRegion.us.geoContentSuggestions,
 };
 
 // Keyword matches used to guess a prompt's product category for the

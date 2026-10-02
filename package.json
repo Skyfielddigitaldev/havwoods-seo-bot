@@ -13,8 +13,11 @@
     "monthly": "node src/monthly-core-web-vitals.js",
     "monthly:uk": "REGION=uk node src/monthly-core-web-vitals.js",
     "geo-ai-tracking": "node src/geo-ai-tracking.js",
+    "geo-ai-tracking:uk": "REGION=uk node src/geo-ai-tracking.js",
     "geo-link-opportunities": "node src/geo-link-opportunities.js",
+    "geo-link-opportunities:uk": "REGION=uk node src/geo-link-opportunities.js",
     "geo-content-suggestions": "node src/geo-content-suggestions.js",
+    "geo-content-suggestions:uk": "REGION=uk node src/geo-content-suggestions.js",
     "approval-routing": "node src/approval-routing.js"
   },
   "license": "UNLICENSED",

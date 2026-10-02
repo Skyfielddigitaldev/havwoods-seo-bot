@@ -1,19 +1,30 @@
-// Weekly Havwoods (US) GEO / AI search visibility pull.
-// Run by .github/workflows/weekly-geo-ai-tracking.yml.
+// Weekly Havwoods GEO / AI search visibility pull. Runs once per region
+// (US or UK), selected by the REGION env var — see .github/workflows/
+// weekly-geo-ai-tracking.yml (US) and weekly-geo-ai-tracking-uk.yml (UK).
+// The UK run is a no-op until OTTERLY_REPORT_ID_UK is set (see
+// src/config.js) — there's no UK Otterly brand report yet, so it just logs
+// that it's skipping rather than failing the workflow.
 //
-// 1. Reads the prompt set configured in the Otterly AI brand report.
+// 1. Reads the prompt set configured in this region's Otterly AI brand
+//    report.
 // 2. For each prompt, gets the latest AI response per engine (ChatGPT,
 //    Google AI Overview, Perplexity, Gemini, Copilot).
 // 3. Classifies each prompt/engine pair: is Havwoods cited, is a
 //    competitor cited instead, or is nothing cited at all.
-// 4. Upserts one row per prompt/engine pair onto HW GEO / AI Search
-//    Tracking, keyed by a hidden Sync Key column (promptId:engine) so
-//    re-runs always update the same row instead of duplicating it, even
-//    if the prompt wording or display name ever changes.
+// 4. Upserts one row per prompt/engine pair onto this region's HW GEO / AI
+//    Search Tracking board, keyed by a hidden Sync Key column
+//    (promptId:engine) so re-runs always update the same row instead of
+//    duplicating it, even if the prompt wording or display name ever
+//    changes.
 
-import { boards, BRAND_DOMAIN, OTTERLY_REPORT_ID, OTTERLY_COUNTRY, promptCategoryKeywords, isoDate } from "./config.js";
+import { boardsByRegion, regions, resolveRegion, otterlyConfigFor, BRAND_DOMAIN, promptCategoryKeywords, isoDate } from "./config.js";
 import * as monday from "./lib/monday.js";
 import { listPrompts, listAiResponses, latestRunPerEngine, classifyResponse, ENGINE_LABELS } from "./lib/otterly.js";
+
+const REGION = resolveRegion();
+const regionConfig = regions[REGION];
+const boards = boardsByRegion[REGION];
+const otterly = otterlyConfigFor(REGION);
 
 // Otterly keeps running the same prompt on a rolling basis rather than on a
 // fixed daily schedule, so a 14-day trailing window is used to reliably
@@ -49,12 +60,20 @@ function guessCategory(promptText) {
 }
 
 async function main() {
-  console.log(`GEO / AI search tracking pull starting for ${BRAND_DOMAIN} (${isoDate()})`);
+  if (!otterly) {
+    console.log(
+      `GEO / AI search tracking pull skipped [${regionConfig.label}]: OTTERLY_REPORT_ID_UK is not set yet. ` +
+        `Set it once the UK Otterly brand report exists and this job will start running automatically.`
+    );
+    return;
+  }
+
+  console.log(`GEO / AI search tracking pull starting for ${BRAND_DOMAIN} [${regionConfig.label}] (${isoDate()})`);
 
   const startDate = dateDaysAgo(WINDOW_DAYS);
   const endDate = isoDate();
 
-  const prompts = await listPrompts(OTTERLY_REPORT_ID, { startDate, endDate, country: OTTERLY_COUNTRY });
+  const prompts = await listPrompts(otterly.reportId, { startDate, endDate, country: otterly.country });
   console.log(`${prompts.length} prompt(s) configured on the Otterly brand report.`);
 
   const existingItems = await monday.getBoardItems(boards.geoAiTracking.id, {
@@ -76,10 +95,10 @@ async function main() {
   for (const prompt of prompts) {
     let responses;
     try {
-      responses = await listAiResponses(OTTERLY_REPORT_ID, prompt.id, {
+      responses = await listAiResponses(otterly.reportId, prompt.id, {
         startDate,
         endDate,
-        country: OTTERLY_COUNTRY,
+        country: otterly.country,
       });
     } catch (err) {
       console.warn(`  Failed to pull AI responses for "${prompt.prompt}": ${err.message}`);
@@ -133,7 +152,7 @@ async function main() {
     }
   }
 
-  console.log("GEO / AI search tracking pull complete.");
+  console.log(`GEO / AI search tracking pull complete [${regionConfig.label}].`);
   console.log(`  Rows written: ${rowsWritten}`);
   console.log(`  Cited: ${citedCount}, Competitor cited instead: ${competitorCount}, Not cited: ${notCitedCount}`);
   if (failures.length > 0) {

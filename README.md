@@ -21,6 +21,9 @@ on a UK board or vice versa:
 | --- | --- | --- |
 | Weekly technical SEO + priority pages | `weekly-technical-seo.yml` | `weekly-technical-seo-uk.yml` |
 | Monthly Core Web Vitals | `monthly-core-web-vitals.yml` | `monthly-core-web-vitals-uk.yml` |
+| Weekly GEO / AI search tracking | `weekly-geo-ai-tracking.yml` | `weekly-geo-ai-tracking-uk.yml` |
+| Weekly GEO link opportunities | `weekly-geo-link-opportunities.yml` | `weekly-geo-link-opportunities-uk.yml` |
+| Weekly GEO content suggestions | `weekly-geo-content-suggestions.yml` | `weekly-geo-content-suggestions-uk.yml` |
 
 | Board | US | UK |
 | --- | --- | --- |
@@ -28,6 +31,10 @@ on a UK board or vice versa:
 | Mobile & Performance | HW Mobile & Performance | HW Mobile & Performance UK |
 | Priority Pages Performance | HW Priority Pages Performance | HW Priority Pages Performance UK |
 | KPI Dashboard | HW KPI Dashboard | HW KPI Dashboard UK |
+| GEO / AI Search Tracking | HW GEO / AI Search Tracking | HW GEO / AI Search Tracking UK |
+| Off-Page SEO | HW Off-Page SEO | HW Off-Page SEO UK |
+| Internal Linking | HW Internal Linking | HW Internal Linking UK |
+| GEO Content Suggestions | HW GEO Content Suggestions | HW GEO Content Suggestions UK |
 
 The UK boards were created by duplicating the US ones (same columns,
 status labels, and group ids), so `src/config.js` keeps one column map per
@@ -49,8 +56,15 @@ so one run checks both US and UK boards for `Approved` items needing a
 developer.
 
 The Otterly-driven GEO jobs (AI tracking, link opportunities, content
-suggestions) are **not** region-split — they run against the single US
-Otterly report (`OTTERLY_COUNTRY = "us"`) and write to the US boards only.
+suggestions) are region-split the same way, each with its own US and UK
+workflow and board set. The UK side is built and wired up, but **it's a
+no-op until you set it up**: there's no UK Otterly brand report yet, so
+`otterlyConfigFor("uk")` in `src/config.js` returns `null` and every UK GEO
+job just logs that it's skipped and exits successfully, rather than
+failing the workflow. Once a UK Otterly brand report exists, set its
+report id as the `OTTERLY_REPORT_ID_UK` repo secret and the three UK GEO
+workflows will start running automatically on their existing schedule, no
+code changes needed.
 
 If Site Audit is scoped to one Semrush project that crawls the whole site,
 both regions can share `SEMRUSH_PROJECT_ID` — results are filtered to each
@@ -78,7 +92,7 @@ it automatically (falls back to `SEMRUSH_PROJECT_ID` if unset).
 - Updates the current month's row on **HW KPI Dashboard**, including how
   many priority pages moved from page 2+ to page 1 this run.
 
-**Weekly** (`.github/workflows/weekly-geo-ai-tracking.yml`, Mondays 8:20am ET)
+**Weekly** (`.github/workflows/weekly-geo-ai-tracking.yml`, Mondays 8:20am ET; UK twin `weekly-geo-ai-tracking-uk.yml`, Mondays 8:23am ET — no-op until `OTTERLY_REPORT_ID_UK` is set)
 - Pulls the prompt set configured in the Havwoods Otterly AI brand report.
 - For each prompt, gets the latest AI response on each engine (ChatGPT,
   Google AI Overview, Perplexity, Gemini, Copilot).
@@ -91,7 +105,8 @@ it automatically (falls back to `SEMRUSH_PROJECT_ID` if unset).
   than risking a duplicate if the prompt wording ever changes.
 
 **Weekly** (`.github/workflows/weekly-geo-link-opportunities.yml`, Mondays
-8:27am ET)
+8:27am ET; UK twin `weekly-geo-link-opportunities-uk.yml`, Mondays 8:30am
+ET — no-op until `OTTERLY_REPORT_ID_UK` is set)
 - Reuses the same Otterly prompt/citation data as the GEO/AI tracking job
   to suggest **backlink** and **internal link** opportunities.
 - Backlink suggestions: when a competitor is cited instead of Havwoods for
@@ -111,7 +126,8 @@ it automatically (falls back to `SEMRUSH_PROJECT_ID` if unset).
   off "Needs Review".
 
 **Weekly** (`.github/workflows/weekly-geo-content-suggestions.yml`, Mondays
-8:34am ET)
+8:34am ET; UK twin `weekly-geo-content-suggestions-uk.yml`, Mondays 8:37am
+ET — no-op until `OTTERLY_REPORT_ID_UK` is set)
 - For every Otterly prompt where Havwoods isn't cited by any engine,
   suggests which existing page should get expanded content to compete for
   that prompt (matched via **HW Priority Pages Performance**, so the
@@ -193,6 +209,7 @@ this repo:
 | `SEMRUSH_API_KEY` | Semrush account API key (Semrush dashboard > Profile > API Keys) |
 | `MONDAY_API_TOKEN` | monday.com API token with write access to the Havwoods workspace (monday.com > Avatar > Admin > API, or Profile > Developers) |
 | `OTTERLY_API_KEY` | Otterly AI account API key, needed for the GEO/AI search tracking job (Otterly dashboard > Settings > API Keys) |
+| `OTTERLY_REPORT_ID_UK` | Optional. The UK Otterly brand report id. Until this is set, all three UK GEO workflows log that they're skipped and exit successfully — nothing fails, nothing writes. Set it once a UK Otterly brand report exists and the UK GEO jobs start running automatically. |
 
 The monthly Core Web Vitals job needs no secret at all. It runs Lighthouse
 directly against a headless Chrome the workflow installs on the runner.

@@ -11,6 +11,12 @@ export const DEFAULT_ASSIGNEE_ID = 50429760; // Zevi Walsh
 export const SEMRUSH_DOMAIN = "havwoods.com";
 export const SEMRUSH_DATABASE = "us";
 
+// Bare domain (no protocol, no www) used to match citation links back to
+// Havwoods in the Otterly AI tracking job.
+export const BRAND_DOMAIN = "havwoods.com";
+export const OTTERLY_REPORT_ID = "01M3CPWJ4THFDA5GXH9ZDEFAQ8";
+export const OTTERLY_COUNTRY = "us";
+
 export const boards = {
   technicalSeo: {
     id: 9420699962,
@@ -87,7 +93,33 @@ export const boards = {
       lastChecked: "date_mm7n593e",
     },
   },
+  geoAiTracking: {
+    id: 18433047834,
+    groupId: "group_mm7mnesc", // "Starter Prompt Set (Oct 2026)"
+    columns: {
+      category: "color_mm7mj9x9",
+      aiPlatform: "color_mm7mj9dj",
+      havwoodsCited: "color_mm7mh7bk",
+      citedUrl: "link_mm7msjyg",
+      lastChecked: "date_mm7mjrmy",
+      notes: "long_text_mm7mvmpg",
+      citedPageType: "color_mm7m9pr0",
+    },
+  },
 };
+
+// Keyword matches used to guess a prompt's product category for the
+// HW GEO / AI Search Tracking board. Checked in order; first match wins.
+// Falls back to "General / Brand" when nothing matches.
+export const promptCategoryKeywords = [
+  { pattern: /herringbone/i, label: "Herringbone" },
+  { pattern: /chevron/i, label: "Chevron" },
+  { pattern: /parquet/i, label: "Parquet" },
+  { pattern: /wall paneling|wall panelling/i, label: "Wall Paneling" },
+  { pattern: /wide plank/i, label: "Wide Plank" },
+  { pattern: /engineered/i, label: "Engineered" },
+  { pattern: /bathroom/i, label: "Bathroom Flooring" },
+];
 
 // Priority commercial categories for internal linking / position tracking,
 // matched against page URL slugs. `label` is the status option on the

@@ -24,6 +24,17 @@ the workflows.
 - Updates the current month's row on **HW KPI Dashboard**, including how
   many priority pages moved from page 2+ to page 1 this run.
 
+**Weekly** (`.github/workflows/weekly-geo-ai-tracking.yml`, Mondays 8:20am ET)
+- Pulls the prompt set configured in the Havwoods Otterly AI brand report.
+- For each prompt, gets the latest AI response on each engine (ChatGPT,
+  Google AI Overview, Perplexity, Gemini, Copilot).
+- Classifies each prompt/engine pair as Cited, Competitor Cited Instead, or
+  Not Cited, based on whether a havwoods.com link shows up in the AI
+  response's citations.
+- Upserts one row per prompt/engine pair onto **HW GEO / AI Search
+  Tracking**, keyed by item name so re-runs update in place rather than
+  duplicating rows.
+
 **Monthly** (`.github/workflows/monthly-core-web-vitals.yml`, the 2nd of
 each month, 8:13am ET)
 - Gets the current top 20 US landing pages by organic traffic from Semrush.
@@ -51,6 +62,7 @@ this repo:
 | `SEMRUSH_API_KEY` | Semrush account API key (Semrush dashboard > Profile > API Keys) |
 | `MONDAY_API_TOKEN` | monday.com API token with write access to the Havwoods workspace (monday.com > Avatar > Admin > API, or Profile > Developers) |
 | `PAGESPEED_API_KEY` | Optional. PageSpeed Insights works without a key at low volume; a free key removes the shared rate limit. Get one at [developers.google.com/speed/docs/insights/v5/get-started](https://developers.google.com/speed/docs/insights/v5/get-started) |
+| `OTTERLY_API_KEY` | Otterly AI account API key, needed for the GEO/AI search tracking job (Otterly dashboard > Settings > API Keys) |
 
 And one **repo variable** (Settings > Secrets and variables > Actions >
 Variables, not Secrets, it isn't sensitive):

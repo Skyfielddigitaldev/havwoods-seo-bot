@@ -7,7 +7,9 @@
 // 3. Classifies each prompt/engine pair: is Havwoods cited, is a
 //    competitor cited instead, or is nothing cited at all.
 // 4. Upserts one row per prompt/engine pair onto HW GEO / AI Search
-//    Tracking, keyed by item name so re-runs update in place.
+//    Tracking, keyed by a hidden Sync Key column (promptId:engine) so
+//    re-runs always update the same row instead of duplicating it, even
+//    if the prompt wording or display name ever changes.
 
 import { boards, BRAND_DOMAIN, OTTERLY_REPORT_ID, OTTERLY_COUNTRY, promptCategoryKeywords, isoDate } from "./config.js";
 import * as monday from "./lib/monday.js";
@@ -57,8 +59,13 @@ async function main() {
 
   const existingItems = await monday.getBoardItems(boards.geoAiTracking.id, {
     groupId: boards.geoAiTracking.groupId,
+    columnIds: [boards.geoAiTracking.columns.syncKey],
   });
-  const existingByName = new Map(existingItems.map((item) => [item.name, item.id]));
+  const existingByKey = new Map();
+  for (const item of existingItems) {
+    const key = item.column_values.find((c) => c.id === boards.geoAiTracking.columns.syncKey)?.text;
+    if (key) existingByKey.set(key, item.id);
+  }
 
   let citedCount = 0;
   let competitorCount = 0;
@@ -101,6 +108,7 @@ async function main() {
         brandMentionCount > 0 ? `Havwoods mentioned ${brandMentionCount} time(s) in the response text.` : null,
       ].filter(Boolean).join(" ");
 
+      const syncKey = `${prompt.id}:${run.engine}`;
       const itemName = `${prompt.prompt} (${engineLabel})`;
       const columnValues = {
         [boards.geoAiTracking.columns.category]: monday.columnValue.status(category),
@@ -112,9 +120,10 @@ async function main() {
         ),
         [boards.geoAiTracking.columns.lastChecked]: monday.columnValue.date(isoDate(new Date(run.runDate))),
         [boards.geoAiTracking.columns.notes]: monday.columnValue.text(notesLines),
+        [boards.geoAiTracking.columns.syncKey]: monday.columnValue.text(syncKey),
       };
 
-      const existingItemId = existingByName.get(itemName);
+      const existingItemId = existingByKey.get(syncKey);
       if (existingItemId) {
         await monday.changeColumnValues(boards.geoAiTracking.id, existingItemId, columnValues);
       } else {

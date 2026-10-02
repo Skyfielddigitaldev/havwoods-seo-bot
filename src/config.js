@@ -104,6 +104,10 @@ export const boards = {
       lastChecked: "date_mm7mjrmy",
       notes: "long_text_mm7mvmpg",
       citedPageType: "color_mm7m9pr0",
+      // Stable promptId:engine key, hidden from normal view, used to match
+      // existing rows on re-runs instead of the human-readable item name
+      // (which could drift if Otterly ever reworks a prompt's wording).
+      syncKey: "text_mm7r8w42",
     },
   },
 };

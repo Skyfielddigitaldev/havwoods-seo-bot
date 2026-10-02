@@ -18,7 +18,7 @@
 // stay Approved for a person to actually go do and then mark Done/
 // Published themselves. Nothing to automate there yet.
 
-import { boards, DEFAULT_ASSIGNEE_ID, devNeededIssueLabels, priorityCategories, isoDate } from "./config.js";
+import { boards, boardsByRegion, regions, DEFAULT_ASSIGNEE_ID, devNeededIssueLabels, priorityCategories, isoDate } from "./config.js";
 import * as monday from "./lib/monday.js";
 
 function columnText(item, columnId) {
@@ -47,54 +47,58 @@ function urlFromItemName(name) {
   return idx === -1 ? null : name.slice(idx + 2);
 }
 
-async function routeTechnicalSeoIssues() {
-  const items = await monday.getBoardItems(boards.technicalSeo.id, {
-    columnIds: [boards.technicalSeo.columns.issuesFixed, boards.technicalSeo.columns.issueType, boards.technicalSeo.columns.routedToDev],
+async function routeTechnicalSeoIssues(regionBoards, regionLabel) {
+  const items = await monday.getBoardItems(regionBoards.technicalSeo.id, {
+    columnIds: [
+      regionBoards.technicalSeo.columns.issuesFixed,
+      regionBoards.technicalSeo.columns.issueType,
+      regionBoards.technicalSeo.columns.routedToDev,
+    ],
   });
 
   let routed = 0;
   for (const item of items) {
-    const status = columnText(item, boards.technicalSeo.columns.issuesFixed);
-    const issueType = columnText(item, boards.technicalSeo.columns.issueType);
-    const alreadyRouted = columnChecked(item, boards.technicalSeo.columns.routedToDev);
+    const status = columnText(item, regionBoards.technicalSeo.columns.issuesFixed);
+    const issueType = columnText(item, regionBoards.technicalSeo.columns.issueType);
+    const alreadyRouted = columnChecked(item, regionBoards.technicalSeo.columns.routedToDev);
 
     if (status !== "Approved" || alreadyRouted || !devNeededIssueLabels.has(issueType)) continue;
 
     const url = urlFromItemName(item.name);
-    await monday.createItem(boards.tasks.id, boards.tasks.recurringGroupId, `Fix: ${item.name}`, {
+    await monday.createItem(boards.tasks.id, boards.tasks.recurringGroupId, `Fix: ${item.name} (${regionLabel})`, {
       [boards.tasks.columns.assignee]: monday.columnValue.people([DEFAULT_ASSIGNEE_ID]),
       [boards.tasks.columns.priority]: monday.columnValue.status(affectsPriorityPage(url) ? "High" : "Medium"),
       [boards.tasks.columns.source]: monday.columnValue.status("Semrush Weekly Crawl"),
       [boards.tasks.columns.relatedItem]: monday.columnValue.link(
-        `https://skyfield-digital.monday.com/boards/${boards.technicalSeo.id}/pulses/${item.id}`,
+        `https://skyfield-digital.monday.com/boards/${regionBoards.technicalSeo.id}/pulses/${item.id}`,
         issueType
       ),
     });
-    await monday.changeColumnValues(boards.technicalSeo.id, item.id, {
-      [boards.technicalSeo.columns.routedToDev]: monday.columnValue.checkbox(true),
+    await monday.changeColumnValues(regionBoards.technicalSeo.id, item.id, {
+      [regionBoards.technicalSeo.columns.routedToDev]: monday.columnValue.checkbox(true),
     });
     routed += 1;
   }
   return routed;
 }
 
-async function routeMobilePerformanceIssues() {
-  const items = await monday.getBoardItems(boards.mobilePerformance.id, {
+async function routeMobilePerformanceIssues(regionBoards, regionLabel) {
+  const items = await monday.getBoardItems(regionBoards.mobilePerformance.id, {
     columnIds: [
-      boards.mobilePerformance.columns.reviewStatus,
-      boards.mobilePerformance.columns.renderBlockingFix,
-      boards.mobilePerformance.columns.adaFixNeeded,
-      boards.mobilePerformance.columns.routedToDev,
-      boards.mobilePerformance.columns.pageUrl,
+      regionBoards.mobilePerformance.columns.reviewStatus,
+      regionBoards.mobilePerformance.columns.renderBlockingFix,
+      regionBoards.mobilePerformance.columns.adaFixNeeded,
+      regionBoards.mobilePerformance.columns.routedToDev,
+      regionBoards.mobilePerformance.columns.pageUrl,
     ],
   });
 
   let routed = 0;
   for (const item of items) {
-    const reviewStatus = columnText(item, boards.mobilePerformance.columns.reviewStatus);
-    const renderBlocking = columnText(item, boards.mobilePerformance.columns.renderBlockingFix);
-    const ada = columnText(item, boards.mobilePerformance.columns.adaFixNeeded);
-    const alreadyRouted = columnChecked(item, boards.mobilePerformance.columns.routedToDev);
+    const reviewStatus = columnText(item, regionBoards.mobilePerformance.columns.reviewStatus);
+    const renderBlocking = columnText(item, regionBoards.mobilePerformance.columns.renderBlockingFix);
+    const ada = columnText(item, regionBoards.mobilePerformance.columns.adaFixNeeded);
+    const alreadyRouted = columnChecked(item, regionBoards.mobilePerformance.columns.routedToDev);
     const needsDev = renderBlocking === "Dev Needed" || ada === "Dev Needed";
 
     if (reviewStatus !== "Approved" || alreadyRouted || !needsDev) continue;
@@ -103,17 +107,17 @@ async function routeMobilePerformanceIssues() {
       .filter(Boolean)
       .join(" + ");
 
-    await monday.createItem(boards.tasks.id, boards.tasks.recurringGroupId, `Fix: ${item.name} (${reasons})`, {
+    await monday.createItem(boards.tasks.id, boards.tasks.recurringGroupId, `Fix: ${item.name} (${reasons}, ${regionLabel})`, {
       [boards.tasks.columns.assignee]: monday.columnValue.people([DEFAULT_ASSIGNEE_ID]),
       [boards.tasks.columns.priority]: monday.columnValue.status("Medium"),
       [boards.tasks.columns.source]: monday.columnValue.status("Lighthouse Audit"),
       [boards.tasks.columns.relatedItem]: monday.columnValue.link(
-        `https://skyfield-digital.monday.com/boards/${boards.mobilePerformance.id}/pulses/${item.id}`,
+        `https://skyfield-digital.monday.com/boards/${regionBoards.mobilePerformance.id}/pulses/${item.id}`,
         item.name
       ),
     });
-    await monday.changeColumnValues(boards.mobilePerformance.id, item.id, {
-      [boards.mobilePerformance.columns.routedToDev]: monday.columnValue.checkbox(true),
+    await monday.changeColumnValues(regionBoards.mobilePerformance.id, item.id, {
+      [regionBoards.mobilePerformance.columns.routedToDev]: monday.columnValue.checkbox(true),
     });
     routed += 1;
   }
@@ -123,12 +127,20 @@ async function routeMobilePerformanceIssues() {
 async function main() {
   console.log(`Approval-routing sweep starting (${isoDate()})`);
 
-  const technicalSeoRouted = await routeTechnicalSeoIssues();
-  const mobilePerformanceRouted = await routeMobilePerformanceIssues();
+  // Sweeps both US and UK boards in one run, since this job is a light
+  // read-then-flag pass rather than a heavy per-page audit — no need for
+  // separate US/UK workflows the way the technical SEO and Core Web Vitals
+  // jobs need them.
+  for (const [regionKey, regionBoards] of Object.entries(boardsByRegion)) {
+    const regionLabel = regions[regionKey].label;
+    const technicalSeoRouted = await routeTechnicalSeoIssues(regionBoards, regionLabel);
+    const mobilePerformanceRouted = await routeMobilePerformanceIssues(regionBoards, regionLabel);
+
+    console.log(`[${regionLabel}] HW Technical SEO issues routed to HW Tasks: ${technicalSeoRouted}`);
+    console.log(`[${regionLabel}] HW Mobile & Performance issues routed to HW Tasks: ${mobilePerformanceRouted}`);
+  }
 
   console.log("Approval-routing sweep complete.");
-  console.log(`  HW Technical SEO issues routed to HW Tasks: ${technicalSeoRouted}`);
-  console.log(`  HW Mobile & Performance issues routed to HW Tasks: ${mobilePerformanceRouted}`);
 }
 
 main().catch((err) => {

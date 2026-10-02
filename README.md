@@ -7,7 +7,58 @@ the workflows.
 
 ## What it does
 
-**Weekly** (`.github/workflows/weekly-technical-seo.yml`, Mondays 8:07am ET)
+### US / UK regions
+
+Havwoods serves both markets from the same domain, split by URL path
+(`/us/...`, `/uk/...`). The three Semrush-sourced jobs — technical SEO,
+Core Web Vitals, and priority page tracking (all bundled in
+`weekly-technical-seo.js` and `monthly-core-web-vitals.js`) — each run
+**once per region**, driven by a `REGION` env var (`us` or `uk`, defaults
+to `us`), and write to a separate set of boards so a US page never lands
+on a UK board or vice versa:
+
+| Job | US workflow | UK workflow |
+| --- | --- | --- |
+| Weekly technical SEO + priority pages | `weekly-technical-seo.yml` | `weekly-technical-seo-uk.yml` |
+| Monthly Core Web Vitals | `monthly-core-web-vitals.yml` | `monthly-core-web-vitals-uk.yml` |
+
+| Board | US | UK |
+| --- | --- | --- |
+| Technical SEO | HW Technical SEO | HW Technical SEO UK |
+| Mobile & Performance | HW Mobile & Performance | HW Mobile & Performance UK |
+| Priority Pages Performance | HW Priority Pages Performance | HW Priority Pages Performance UK |
+| KPI Dashboard | HW KPI Dashboard | HW KPI Dashboard UK |
+
+The UK boards were created by duplicating the US ones (same columns,
+status labels, and group ids), so `src/config.js` keeps one column map per
+board type and just points each region at its own board/group ids
+(`boardsByRegion.us` / `boardsByRegion.uk`).
+
+Region filtering happens two ways:
+- **Sitemap crawl** (new-page discovery): `getAllSitePages({ pathPrefix })`
+  only walks URLs under `/us/` or `/uk/` for that run.
+- **Semrush pulls** (top organic pages, Site Audit issues, keyword
+  positions): Semrush's own `database` parameter only controls which
+  country's search index is read from, not which URL path — so results are
+  always additionally filtered client-side to the region's path prefix.
+  Without this, pages from other locales (AU, INT, ...) can otherwise show
+  up in a region's "top 20" or issue list.
+
+The approval-routing job isn't split by region — it's a lightweight sweep,
+so one run checks both US and UK boards for `Approved` items needing a
+developer.
+
+The Otterly-driven GEO jobs (AI tracking, link opportunities, content
+suggestions) are **not** region-split — they run against the single US
+Otterly report (`OTTERLY_COUNTRY = "us"`) and write to the US boards only.
+
+If Site Audit is scoped to one Semrush project that crawls the whole site,
+both regions can share `SEMRUSH_PROJECT_ID` — results are filtered to each
+region's path anyway. If you set up separate Semrush projects per region,
+add `SEMRUSH_PROJECT_ID_UK` as a repo variable and the UK workflow will use
+it automatically (falls back to `SEMRUSH_PROJECT_ID` if unset).
+
+**Weekly** (`.github/workflows/weekly-technical-seo.yml`, Mondays 8:07am ET; UK twin `weekly-technical-seo-uk.yml`, Mondays 8:11am ET)
 - Pulls Site Audit issues from Semrush for havwoods.com: 404s, redirect
   chains, broken internal links, indexing issues, duplicate content,
   structured data errors, and hreflang/canonical problems.
@@ -82,7 +133,7 @@ time)
   happens to the GEO suggestion boards.
 
 **Monthly** (`.github/workflows/monthly-core-web-vitals.yml`, the 2nd of
-each month, 8:13am ET)
+each month, 8:13am ET; UK twin `monthly-core-web-vitals-uk.yml`, 8:19am ET)
 - Gets the current top 20 US landing pages by organic traffic from Semrush,
   **plus** any brand-new page found by crawling havwoods.com's sitemap.xml
   that has never been checked before (capped at 15 new pages per run, so a
@@ -152,6 +203,7 @@ Variables, not Secrets, it isn't sensitive):
 | Variable | What it's for |
 |---|---|
 | `SEMRUSH_PROJECT_ID` | The numeric Semrush project ID for Havwoods' Site Audit project. Needed for the weekly job's Site Audit call. See the warning below. |
+| `SEMRUSH_PROJECT_ID_UK` | Optional. Only needed if you set up a separate Semrush Site Audit project scoped to the UK pages. If unset, the UK weekly job falls back to `SEMRUSH_PROJECT_ID` and filters the results to `/uk/` itself. |
 
 ## About the Core Web Vitals numbers (Mobile & Performance)
 

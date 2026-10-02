@@ -1,23 +1,41 @@
-// Weekly Havwoods (US) technical SEO sync.
-// Run by .github/workflows/weekly-technical-seo.yml every Monday.
+// Weekly Havwoods technical SEO sync. Runs once per region (US or UK),
+// selected by the REGION env var — see .github/workflows/
+// weekly-technical-seo.yml (US) and weekly-technical-seo-uk.yml (UK).
 //
 // 1. Pulls Site Audit issues from Semrush (404s, redirect chains, broken
 //    internal links, indexing issues, duplicate content, structured data
-//    errors) and hreflang/canonical problems.
-// 2. Logs new issues to the HW Technical SEO board as "Needs Review" (skips
-//    ones already logged and still open). The issue's fingerprint
-//    (category::url) is also written to a visible Issue ID column so dedup
-//    is checkable on the board itself, not just in the local state file.
+//    errors) and hreflang/canonical problems, then keeps only the ones
+//    whose URL falls under this region's path (/us/ or /uk/) — the Semrush
+//    project can crawl the whole site, so this filter is what keeps a UK
+//    issue off the US board and vice versa.
+// 2. Logs new issues to this region's HW Technical SEO board as "Needs
+//    Review" (skips ones already logged and still open). The issue's
+//    fingerprint (category::url) is also written to a visible Issue ID
+//    column so dedup is checkable on the board itself, not just in the
+//    local state file.
 // 3. A human reviewer triages each issue; the separate approval-routing job
 //    (src/approval-routing.js) picks up anything marked "Approved" that
 //    needs a developer and creates the HW Tasks item for it.
-// 4. Checks priority category pages for page-2-to-page-1 movement.
-// 5. Updates the HW KPI Dashboard's row for the current month.
+// 4. Checks this region's priority category pages for page-2-to-page-1
+//    movement.
+// 5. Updates this region's HW KPI Dashboard row for the current month.
 
-import { boards, DEFAULT_ASSIGNEE_ID, SEMRUSH_DOMAIN, SEMRUSH_DATABASE, priorityCategories, monthGroupName, isoDate } from "./config.js";
+import { boardsByRegion, regions, resolveRegion, DEFAULT_ASSIGNEE_ID, SEMRUSH_DOMAIN, priorityCategories, monthGroupName, isoDate } from "./config.js";
 import * as monday from "./lib/monday.js";
 import { getSiteAuditIssues, getPositionsForUrlPatterns } from "./lib/semrush.js";
 import { readState, writeState } from "./lib/state.js";
+
+const REGION = resolveRegion();
+const regionConfig = regions[REGION];
+const boards = boardsByRegion[REGION];
+
+function isInRegion(url) {
+  try {
+    return new URL(url).pathname.startsWith(regionConfig.pathPrefix);
+  } catch {
+    return typeof url === "string" && url.includes(regionConfig.pathPrefix);
+  }
+}
 
 const ISSUE_TYPE_LABELS = {
   "404": "404",
@@ -35,19 +53,24 @@ function fingerprint(issue) {
 }
 
 async function main() {
-  console.log(`Weekly technical SEO sync starting for ${SEMRUSH_DOMAIN} (${isoDate()})`);
+  console.log(`Weekly technical SEO sync starting for ${SEMRUSH_DOMAIN} [${regionConfig.label}] (${isoDate()})`);
 
-  const state = await readState("technical-seo-state.json", { loggedIssues: {} });
+  const state = await readState(`technical-seo-state-${REGION}.json`, { loggedIssues: {} });
   const monthGroup = monthGroupName();
   const groupId = await monday.findOrCreateGroup(boards.technicalSeo.id, monthGroup);
 
   let issues = [];
   let siteAuditError = null;
   try {
-    const projectId = process.env.SEMRUSH_PROJECT_ID;
+    // A region-specific project id (SEMRUSH_PROJECT_ID_US / _UK) lets you
+    // point each region at its own Semrush Site Audit project; falls back
+    // to the shared SEMRUSH_PROJECT_ID if only one project covers the
+    // whole site. Either way, results are filtered to this region's path
+    // below, so a shared project never leaks the other region's issues.
+    const projectId = process.env[`SEMRUSH_PROJECT_ID_${REGION.toUpperCase()}`] || process.env.SEMRUSH_PROJECT_ID;
     const raw = await getSiteAuditIssues(projectId);
-    issues = normalizeSiteAuditIssues(raw);
-    console.log(`Semrush Site Audit returned ${issues.length} issue(s).`);
+    issues = normalizeSiteAuditIssues(raw).filter((issue) => isInRegion(issue.url));
+    console.log(`Semrush Site Audit returned ${issues.length} ${regionConfig.label} issue(s).`);
   } catch (err) {
     siteAuditError = err.message;
     console.error(`Site Audit fetch failed, continuing without it: ${siteAuditError}`);
@@ -145,9 +168,9 @@ async function main() {
     await monday.changeColumnValues(boards.kpiDashboard.id, kpiItem.id, kpiColumnValues);
   }
 
-  await writeState("technical-seo-state.json", state);
+  await writeState(`technical-seo-state-${REGION}.json`, state);
 
-  console.log("Weekly technical SEO sync complete.");
+  console.log(`Weekly technical SEO sync complete [${regionConfig.label}].`);
   console.log(`  New issues logged: ${newlyLogged.length}`);
   console.log(`  Page 2 -> page 1 moves: ${p2p1Moves}`);
   if (siteAuditError) console.log(`  Site Audit error: ${siteAuditError}`);
@@ -188,15 +211,17 @@ async function syncPriorityPages() {
   const rows = await getPositionsForUrlPatterns(
     SEMRUSH_DOMAIN,
     priorityCategories.map((category) => category.slug),
-    { database: SEMRUSH_DATABASE }
+    { database: regionConfig.database }
   );
 
   // Keep only each page's best-ranking (lowest position number) keyword, so
   // the board shows one representative row per URL rather than one per
-  // keyword.
+  // keyword. Also drop rows outside this region's path: a category slug
+  // like "herringbone" can match both /us/.../herringbone... and
+  // /uk/.../herringbone... so the database filter alone isn't enough.
   const bestByUrl = new Map();
   for (const row of rows) {
-    if (!Number.isFinite(row.position)) continue;
+    if (!Number.isFinite(row.position) || !isInRegion(row.url)) continue;
     const existing = bestByUrl.get(row.url);
     if (!existing || row.position < existing.position) {
       bestByUrl.set(row.url, row);

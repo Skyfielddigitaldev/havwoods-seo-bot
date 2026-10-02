@@ -11,32 +11,160 @@ export const DEFAULT_ASSIGNEE_ID = 50429760; // Zevi Walsh
 export const SEMRUSH_DOMAIN = "havwoods.com";
 export const SEMRUSH_DATABASE = "us";
 
+// Havwoods serves both the US and UK markets from the same domain, split by
+// URL path (/us/..., /uk/...). Every Semrush-sourced job (technical SEO,
+// Core Web Vitals, priority page tracking) runs once per region so a US
+// page never lands on a UK board or vice versa. Semrush's own "database"
+// parameter picks which country's search index to read positions from;
+// pathPrefix is the client-side filter that keeps a run from picking up
+// pages (or Site Audit issues) outside its own region.
+export const regions = {
+  us: { label: "US", database: "us", pathPrefix: "/us/" },
+  uk: { label: "UK", database: "uk", pathPrefix: "/uk/" },
+};
+
+export function resolveRegion(envValue = process.env.REGION) {
+  const key = (envValue || "us").toLowerCase();
+  if (!regions[key]) {
+    throw new Error(`Unknown REGION "${envValue}". Expected one of: ${Object.keys(regions).join(", ")}`);
+  }
+  return key;
+}
+
 // Bare domain (no protocol, no www) used to match citation links back to
 // Havwoods in the Otterly AI tracking job.
 export const BRAND_DOMAIN = "havwoods.com";
 export const OTTERLY_REPORT_ID = "01M3CPWJ4THFDA5GXH9ZDEFAQ8";
 export const OTTERLY_COUNTRY = "us";
 
-export const boards = {
-  technicalSeo: {
-    id: 9420699962,
-    subitemsBoardId: 9420700071,
-    columns: {
-      issueType: "color_mm7m1zpw",
-      crawlDate: "date_mm7mpg7",
-      usVersion: "color_mm7mk70h",
-      linkToSemrush: "link_mkrwr0zt",
-      issuesFixed: "status_Mjj4dlIM",
-      assignee: "multiple_person_mm7mx792",
-      issueId: "text_mm7r6xxk",
-      routedToDev: "boolean_mm7r8jjw",
+// Column ids for the four Semrush-sourced boards. monday.com's
+// duplicate_board_with_structure mutation (used to create the UK boards
+// from the original US ones) keeps the same column ids on the copy, so one
+// column map covers both regions; only the board id, group ids, and
+// subitems board id differ per region below.
+const technicalSeoColumns = {
+  issueType: "color_mm7m1zpw",
+  crawlDate: "date_mm7mpg7",
+  usVersion: "color_mm7mk70h",
+  linkToSemrush: "link_mkrwr0zt",
+  issuesFixed: "status_Mjj4dlIM",
+  assignee: "multiple_person_mm7mx792",
+  issueId: "text_mm7r6xxk",
+  routedToDev: "boolean_mm7r8jjw",
+};
+
+const technicalSeoSubitemColumns = {
+  pageLink: "link_mkrwwn7r",
+  errorPages: "long_text_mkrwfkwe",
+  issueFixed: "status_Mjj4GNPv",
+};
+
+const mobilePerformanceColumns = {
+  pageUrl: "link_mm7m2xtm",
+  assignee: "multiple_person_mm7mty8n",
+  lcp: "numeric_mm7mqd9s",
+  inp: "numeric_mm7mx4dy",
+  cls: "numeric_mm7mjymx",
+  cwvStatus: "color_mm7mjz63",
+  imageCompression: "color_mm7m5h7b",
+  lazyLoading: "color_mm7mj8r9",
+  renderBlockingFix: "color_mm7mqca",
+  template: "text_mm7mrq5q",
+  reviewDate: "date_mm7mhbs4",
+  dataSource: "color_mm7n42g0",
+  labLcp: "numeric_mm7nw4b7",
+  labCls: "numeric_mm7njm6c",
+  accessibilityScore: "numeric_mm7rj5qt",
+  accessibilityIssues: "long_text_mm7rjdbs",
+  adaFixNeeded: "color_mm7r24hd",
+  reviewStatus: "color_mm7rwyzp",
+  routedToDev: "boolean_mm7rfaa6",
+};
+
+const priorityPagesColumns = {
+  pageUrl: "link_mm7ngzc4",
+  priorityCategory: "color_mm7ncg7w",
+  targetKeyword: "text_mm7nrxc3",
+  currentPosition: "numeric_mm7n7m5q",
+  previousPosition: "numeric_mm7nmgyp",
+  page1Status: "color_mm7ntk07",
+  positionTrend: "color_mm7ndpxx",
+  assignee: "multiple_person_mm7nx8tf",
+  lastChecked: "date_mm7n593e",
+};
+
+const kpiDashboardColumns = {
+  technicalErrorCount: "numeric_mm7mzfc9",
+  p2p1Moves: "numeric_mm7mtzs7",
+  cwvPassRate: "numeric_mm7mrh7x",
+  reportDate: "date_mm7mt4kv",
+  notes: "long_text_mm7mxmvr",
+};
+
+// Per-region board ids and group ids for the four Semrush-sourced boards.
+// The UK boards were created by duplicating the US ones with
+// duplicate_board_with_structure, so their group ids happen to match too
+// (group ids are scoped per board, so reusing the same literal id across
+// two different boards is fine).
+export const boardsByRegion = {
+  us: {
+    technicalSeo: {
+      id: 9420699962,
+      subitemsBoardId: 9420700071,
+      columns: technicalSeoColumns,
+      subitemColumns: technicalSeoSubitemColumns,
     },
-    subitemColumns: {
-      pageLink: "link_mkrwwn7r",
-      errorPages: "long_text_mkrwfkwe",
-      issueFixed: "status_Mjj4GNPv",
+    mobilePerformance: {
+      id: 18433047732,
+      top20GroupId: "group_mm7mvdn",
+      newPagesGroupId: "topics",
+      columns: mobilePerformanceColumns,
+    },
+    priorityPages: {
+      id: 18433242728,
+      groupId: "group_mm7ne1ex",
+      columns: priorityPagesColumns,
+    },
+    kpiDashboard: {
+      id: 18433047972,
+      snapshotsGroupId: "group_mm7mgmd3",
+      columns: kpiDashboardColumns,
     },
   },
+  uk: {
+    technicalSeo: {
+      id: 18433772490,
+      subitemsBoardId: 18433772500,
+      columns: technicalSeoColumns,
+      subitemColumns: technicalSeoSubitemColumns,
+    },
+    mobilePerformance: {
+      id: 18433772516,
+      top20GroupId: "group_mm7mvdn",
+      newPagesGroupId: "topics",
+      columns: mobilePerformanceColumns,
+    },
+    priorityPages: {
+      id: 18433772521,
+      groupId: "group_mm7ne1ex",
+      columns: priorityPagesColumns,
+    },
+    kpiDashboard: {
+      id: 18433772542,
+      snapshotsGroupId: "group_mm7mgmd3",
+      columns: kpiDashboardColumns,
+    },
+  },
+};
+
+export const boards = {
+  // Kept as plain aliases to the US boards so code that isn't region-aware
+  // (e.g. the Otterly-driven GEO jobs, which only ever run for the US
+  // report) can keep referencing boards.priorityPages etc. directly.
+  technicalSeo: boardsByRegion.us.technicalSeo,
+  mobilePerformance: boardsByRegion.us.mobilePerformance,
+  priorityPages: boardsByRegion.us.priorityPages,
+  kpiDashboard: boardsByRegion.us.kpiDashboard,
   tasks: {
     id: 8168296808,
     recurringGroupId: "group_mm2fhfwy",
@@ -47,58 +175,6 @@ export const boards = {
       priority: "color_mm7mtesb",
       source: "color_mm7mvkzz",
       relatedItem: "link_mm7m4bvh",
-    },
-  },
-  kpiDashboard: {
-    id: 18433047972,
-    snapshotsGroupId: "group_mm7mgmd3",
-    columns: {
-      technicalErrorCount: "numeric_mm7mzfc9",
-      p2p1Moves: "numeric_mm7mtzs7",
-      cwvPassRate: "numeric_mm7mrh7x",
-      reportDate: "date_mm7mt4kv",
-      notes: "long_text_mm7mxmvr",
-    },
-  },
-  mobilePerformance: {
-    id: 18433047732,
-    top20GroupId: "group_mm7mvdn",
-    newPagesGroupId: "topics", // "New Pages Discovered" group, for sitemap-only (zero-traffic) pages
-    columns: {
-      pageUrl: "link_mm7m2xtm",
-      assignee: "multiple_person_mm7mty8n",
-      lcp: "numeric_mm7mqd9s",
-      inp: "numeric_mm7mx4dy",
-      cls: "numeric_mm7mjymx",
-      cwvStatus: "color_mm7mjz63",
-      imageCompression: "color_mm7m5h7b",
-      lazyLoading: "color_mm7mj8r9",
-      renderBlockingFix: "color_mm7mqca",
-      template: "text_mm7mrq5q",
-      reviewDate: "date_mm7mhbs4",
-      dataSource: "color_mm7n42g0",
-      labLcp: "numeric_mm7nw4b7",
-      labCls: "numeric_mm7njm6c",
-      accessibilityScore: "numeric_mm7rj5qt",
-      accessibilityIssues: "long_text_mm7rjdbs",
-      adaFixNeeded: "color_mm7r24hd",
-      reviewStatus: "color_mm7rwyzp",
-      routedToDev: "boolean_mm7rfaa6",
-    },
-  },
-  priorityPages: {
-    id: 18433242728,
-    groupId: "group_mm7ne1ex",
-    columns: {
-      pageUrl: "link_mm7ngzc4",
-      priorityCategory: "color_mm7ncg7w",
-      targetKeyword: "text_mm7nrxc3",
-      currentPosition: "numeric_mm7n7m5q",
-      previousPosition: "numeric_mm7nmgyp",
-      page1Status: "color_mm7ntk07",
-      positionTrend: "color_mm7ndpxx",
-      assignee: "multiple_person_mm7nx8tf",
-      lastChecked: "date_mm7n593e",
     },
   },
   geoAiTracking: {

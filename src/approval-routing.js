@@ -47,35 +47,39 @@ function urlFromItemName(name) {
   return idx === -1 ? null : name.slice(idx + 2);
 }
 
-async function routeTechnicalSeoIssues(regionBoards, regionLabel) {
-  const items = await monday.getBoardItems(regionBoards.technicalSeo.id, {
+// HW Technical SEO is a single shared board (not split by region — see
+// src/config.js), so this runs once per sweep rather than once per region.
+// A row's own url (pulled back out of the item name) tells you which
+// market it's for, so there's nothing region-specific to pass in here.
+async function routeTechnicalSeoIssues() {
+  const items = await monday.getBoardItems(boards.technicalSeo.id, {
     columnIds: [
-      regionBoards.technicalSeo.columns.issuesFixed,
-      regionBoards.technicalSeo.columns.issueType,
-      regionBoards.technicalSeo.columns.routedToDev,
+      boards.technicalSeo.columns.issuesFixed,
+      boards.technicalSeo.columns.issueType,
+      boards.technicalSeo.columns.routedToDev,
     ],
   });
 
   let routed = 0;
   for (const item of items) {
-    const status = columnText(item, regionBoards.technicalSeo.columns.issuesFixed);
-    const issueType = columnText(item, regionBoards.technicalSeo.columns.issueType);
-    const alreadyRouted = columnChecked(item, regionBoards.technicalSeo.columns.routedToDev);
+    const status = columnText(item, boards.technicalSeo.columns.issuesFixed);
+    const issueType = columnText(item, boards.technicalSeo.columns.issueType);
+    const alreadyRouted = columnChecked(item, boards.technicalSeo.columns.routedToDev);
 
     if (status !== "Approved" || alreadyRouted || !devNeededIssueLabels.has(issueType)) continue;
 
     const url = urlFromItemName(item.name);
-    await monday.createItem(boards.tasks.id, boards.tasks.recurringGroupId, `Fix: ${item.name} (${regionLabel})`, {
+    await monday.createItem(boards.tasks.id, boards.tasks.recurringGroupId, `Fix: ${item.name}`, {
       [boards.tasks.columns.assignee]: monday.columnValue.people([DEFAULT_ASSIGNEE_ID]),
       [boards.tasks.columns.priority]: monday.columnValue.status(affectsPriorityPage(url) ? "High" : "Medium"),
       [boards.tasks.columns.source]: monday.columnValue.status("Semrush Weekly Crawl"),
       [boards.tasks.columns.relatedItem]: monday.columnValue.link(
-        `https://skyfield-digital.monday.com/boards/${regionBoards.technicalSeo.id}/pulses/${item.id}`,
+        `https://skyfield-digital.monday.com/boards/${boards.technicalSeo.id}/pulses/${item.id}`,
         issueType
       ),
     });
-    await monday.changeColumnValues(regionBoards.technicalSeo.id, item.id, {
-      [regionBoards.technicalSeo.columns.routedToDev]: monday.columnValue.checkbox(true),
+    await monday.changeColumnValues(boards.technicalSeo.id, item.id, {
+      [boards.technicalSeo.columns.routedToDev]: monday.columnValue.checkbox(true),
     });
     routed += 1;
   }
@@ -127,16 +131,18 @@ async function routeMobilePerformanceIssues(regionBoards, regionLabel) {
 async function main() {
   console.log(`Approval-routing sweep starting (${isoDate()})`);
 
-  // Sweeps both US and UK boards in one run, since this job is a light
-  // read-then-flag pass rather than a heavy per-page audit — no need for
-  // separate US/UK workflows the way the technical SEO and Core Web Vitals
-  // jobs need them.
+  // HW Technical SEO is a single shared board, so it's swept once.
+  const technicalSeoRouted = await routeTechnicalSeoIssues();
+  console.log(`HW Technical SEO issues routed to HW Tasks: ${technicalSeoRouted}`);
+
+  // HW Mobile & Performance is split per region, so sweep each region's
+  // board. This is a light read-then-flag pass rather than a heavy
+  // per-page audit, so one combined run covers both — no need for
+  // separate US/UK workflows the way the technical SEO crawl and Core Web
+  // Vitals jobs need them.
   for (const [regionKey, regionBoards] of Object.entries(boardsByRegion)) {
     const regionLabel = regions[regionKey].label;
-    const technicalSeoRouted = await routeTechnicalSeoIssues(regionBoards, regionLabel);
     const mobilePerformanceRouted = await routeMobilePerformanceIssues(regionBoards, regionLabel);
-
-    console.log(`[${regionLabel}] HW Technical SEO issues routed to HW Tasks: ${technicalSeoRouted}`);
     console.log(`[${regionLabel}] HW Mobile & Performance issues routed to HW Tasks: ${mobilePerformanceRouted}`);
   }
 

@@ -167,19 +167,47 @@ const geoContentSuggestionsColumns = {
   syncKey: "text_mm7rx546",
 };
 
-// Per-region board ids and group ids for the four Semrush-sourced boards.
-// The UK boards were created by duplicating the US ones with
+// Per-region board ids and group ids for the Semrush/Otterly-sourced
+// boards. The UK boards were created by duplicating the US ones with
 // duplicate_board_with_structure, so their group ids happen to match too
 // (group ids are scoped per board, so reusing the same literal id across
 // two different boards is fine).
+//
+// Not every board is split by region. HW Technical SEO, HW Off-Page SEO,
+// and HW Internal Linking stay single shared boards on purpose (the team
+// works issues/outreach/linking for both markets off the same board,
+// filtered by each row's own URL or prompt rather than by a separate UK
+// copy) — the uk entries below just point back at the same us board/group
+// ids for those three. Everything else (Mobile & Performance, Priority
+// Pages Performance, KPI Dashboard, GEO/AI Search Tracking, GEO Content
+// Suggestions) has a real separate UK board.
+const usTechnicalSeo = {
+  id: 9420699962,
+  subitemsBoardId: 9420700071,
+  columns: technicalSeoColumns,
+  subitemColumns: technicalSeoSubitemColumns,
+};
+
+// Manually-run backlink board. The bot only writes to the "GEO
+// Suggestions (Bot)" group with Review Status "Needs Review"; the
+// SEO-sourced rows and the month groups stay entirely human-managed.
+const usOffPageSeo = {
+  id: 8168231374,
+  botGroupId: "group_mm7rspyq", // "GEO Suggestions (Bot)"
+  columns: offPageSeoColumns,
+};
+
+// Manually-run internal linking board. Same bot-group convention as
+// offPageSeo above.
+const usInternalLinking = {
+  id: 8168232621,
+  botGroupId: "group_mm7r87js", // "GEO Suggestions (Bot)"
+  columns: internalLinkingColumns,
+};
+
 export const boardsByRegion = {
   us: {
-    technicalSeo: {
-      id: 9420699962,
-      subitemsBoardId: 9420700071,
-      columns: technicalSeoColumns,
-      subitemColumns: technicalSeoSubitemColumns,
-    },
+    technicalSeo: usTechnicalSeo,
     mobilePerformance: {
       id: 18433047732,
       top20GroupId: "group_mm7mvdn",
@@ -201,21 +229,8 @@ export const boardsByRegion = {
       groupId: "group_mm7mnesc", // "Starter Prompt Set (Oct 2026)"
       columns: geoAiTrackingColumns,
     },
-    // Manually-run backlink board. The bot only writes to the "GEO
-    // Suggestions (Bot)" group with Review Status "Needs Review"; the
-    // SEO-sourced rows and the month groups stay entirely human-managed.
-    offPageSeo: {
-      id: 8168231374,
-      botGroupId: "group_mm7rspyq", // "GEO Suggestions (Bot)"
-      columns: offPageSeoColumns,
-    },
-    // Manually-run internal linking board. Same bot-group convention as
-    // offPageSeo above.
-    internalLinking: {
-      id: 8168232621,
-      botGroupId: "group_mm7r87js", // "GEO Suggestions (Bot)"
-      columns: internalLinkingColumns,
-    },
+    offPageSeo: usOffPageSeo,
+    internalLinking: usInternalLinking,
     geoContentSuggestions: {
       id: 18433744120,
       groupId: "topics", // "Weekly Suggestions"
@@ -223,12 +238,10 @@ export const boardsByRegion = {
     },
   },
   uk: {
-    technicalSeo: {
-      id: 18433772490,
-      subitemsBoardId: 18433772500,
-      columns: technicalSeoColumns,
-      subitemColumns: technicalSeoSubitemColumns,
-    },
+    // Shared with US on purpose — see the note above.
+    technicalSeo: usTechnicalSeo,
+    offPageSeo: usOffPageSeo,
+    internalLinking: usInternalLinking,
     mobilePerformance: {
       id: 18433772516,
       top20GroupId: "group_mm7mvdn",
@@ -249,16 +262,6 @@ export const boardsByRegion = {
       id: 18433776446,
       groupId: "group_mm7mnesc", // "Starter Prompt Set (Oct 2026)"
       columns: geoAiTrackingColumns,
-    },
-    offPageSeo: {
-      id: 18433776471,
-      botGroupId: "group_mm7rspyq", // "GEO Suggestions (Bot)"
-      columns: offPageSeoColumns,
-    },
-    internalLinking: {
-      id: 18433776486,
-      botGroupId: "group_mm7r87js", // "GEO Suggestions (Bot)"
-      columns: internalLinkingColumns,
     },
     geoContentSuggestions: {
       id: 18433776458,

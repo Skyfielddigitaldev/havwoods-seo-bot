@@ -10,12 +10,16 @@ the workflows.
 ### US / UK regions
 
 Havwoods serves both markets from the same domain, split by URL path
-(`/us/...`, `/uk/...`). The three Semrush-sourced jobs — technical SEO,
-Core Web Vitals, and priority page tracking (all bundled in
-`weekly-technical-seo.js` and `monthly-core-web-vitals.js`) — each run
+(`/us/...`, `/uk/...`). Every job that touches Semrush or Otterly data runs
 **once per region**, driven by a `REGION` env var (`us` or `uk`, defaults
-to `us`), and write to a separate set of boards so a US page never lands
-on a UK board or vice versa:
+to `us`) — but not every board is split by region. Some boards (Mobile &
+Performance, Priority Pages Performance, KPI Dashboard, GEO/AI Search
+Tracking, GEO Content Suggestions) have a real separate UK copy. Others
+(Technical SEO, Off-Page SEO, Internal Linking) are kept as a single
+shared board on purpose — the team works issues, backlink outreach, and
+internal linking for both markets off the same board, and each row's own
+URL or prompt already says which market it's for, so a second UK copy
+would just split one team's board in two for no reason.
 
 | Job | US workflow | UK workflow |
 | --- | --- | --- |
@@ -25,21 +29,31 @@ on a UK board or vice versa:
 | Weekly GEO link opportunities | `weekly-geo-link-opportunities.yml` | `weekly-geo-link-opportunities-uk.yml` |
 | Weekly GEO content suggestions | `weekly-geo-content-suggestions.yml` | `weekly-geo-content-suggestions-uk.yml` |
 
+Even though every job above has a UK workflow (so the UK-side Semrush/
+Otterly pull and region path-filtering happens either way), only some of
+them write to a separate UK board:
+
 | Board | US | UK |
 | --- | --- | --- |
-| Technical SEO | HW Technical SEO | HW Technical SEO UK |
+| Technical SEO | HW Technical SEO | *shared — same board* |
 | Mobile & Performance | HW Mobile & Performance | HW Mobile & Performance UK |
 | Priority Pages Performance | HW Priority Pages Performance | HW Priority Pages Performance UK |
 | KPI Dashboard | HW KPI Dashboard | HW KPI Dashboard UK |
 | GEO / AI Search Tracking | HW GEO / AI Search Tracking | HW GEO / AI Search Tracking UK |
-| Off-Page SEO | HW Off-Page SEO | HW Off-Page SEO UK |
-| Internal Linking | HW Internal Linking | HW Internal Linking UK |
+| Off-Page SEO | HW Off-Page SEO | *shared — same board* |
+| Internal Linking | HW Internal Linking | *shared — same board* |
 | GEO Content Suggestions | HW GEO Content Suggestions | HW GEO Content Suggestions UK |
 
-The UK boards were created by duplicating the US ones (same columns,
-status labels, and group ids), so `src/config.js` keeps one column map per
-board type and just points each region at its own board/group ids
-(`boardsByRegion.us` / `boardsByRegion.uk`).
+The split UK boards were created by duplicating the US ones (same
+columns, status labels, and group ids), so `src/config.js` keeps one
+column map per board type and just points each region at its own
+board/group ids (`boardsByRegion.us` / `boardsByRegion.uk`). For the three
+shared boards, `boardsByRegion.uk` simply points at the same board object
+as `boardsByRegion.us` — there's no second board to keep in sync. The
+weekly technical SEO job still runs once per region and still only logs
+each region's own issues (filtered by URL), it just logs both into the
+one shared Technical SEO board instead of two. Same idea for the GEO
+link-opportunities job and Off-Page SEO / Internal Linking.
 
 Region filtering happens two ways:
 - **Sitemap crawl** (new-page discovery): `getAllSitePages({ pathPrefix })`
@@ -51,14 +65,19 @@ Region filtering happens two ways:
   Without this, pages from other locales (AU, INT, ...) can otherwise show
   up in a region's "top 20" or issue list.
 
-The approval-routing job isn't split by region — it's a lightweight sweep,
-so one run checks both US and UK boards for `Approved` items needing a
-developer.
+The approval-routing job isn't split by region — it's a lightweight sweep.
+It checks HW Technical SEO once, since that board is shared, and checks
+HW Mobile & Performance (and its UK twin) once per region, since that
+board is split.
 
 The Otterly-driven GEO jobs (AI tracking, link opportunities, content
-suggestions) are region-split the same way, each with its own US and UK
-workflow and board set. The UK side is built and wired up, but **it's a
-no-op until you set it up**: there's no UK Otterly brand report yet, so
+suggestions) have their own US and UK workflow each, pulling from a
+separate Otterly brand report per region. GEO/AI tracking and GEO content
+suggestions write to a separate UK board; link opportunities writes its
+backlink and internal-link suggestions to the shared Off-Page SEO and
+Internal Linking boards either way. The UK side is built and wired up,
+but **it's a no-op until you set it up**: there's no UK Otterly brand
+report yet, so
 `otterlyConfigFor("uk")` in `src/config.js` returns `null` and every UK GEO
 job just logs that it's skipped and exits successfully, rather than
 failing the workflow. Once a UK Otterly brand report exists, set its

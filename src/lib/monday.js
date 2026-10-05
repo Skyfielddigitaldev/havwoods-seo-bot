@@ -5,6 +5,28 @@
 
 const MONDAY_API_URL = "https://api.monday.com/v2";
 
+// monday.com occasionally returns a transient 5xx or an "Internal Server
+// Error"/"Complexity budget exhausted" GraphQL error under load. These
+// clear up on their own within a few seconds, and every write in this file
+// is already safe to retry (callers look up existing items/groups first),
+// so a short retry with backoff here saves an otherwise-healthy 15+ minute
+// job from dying on one blip.
+const MAX_ATTEMPTS = 4;
+const RETRY_BASE_DELAY_MS = 2000;
+
+function sleep(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+function isRetryable({ httpStatus, message }) {
+  if (httpStatus && httpStatus >= 500) return true;
+  if (httpStatus === 429) return true;
+  if (!message) return false;
+  return /internal server error|timeout|timed out|rate limit|complexity budget exhausted|try again/i.test(
+    message
+  );
+}
+
 function requireToken() {
   const token = process.env.MONDAY_API_TOKEN;
   if (!token) {
@@ -16,8 +38,7 @@ function requireToken() {
   return token;
 }
 
-async function mondayRequest(query, variables = {}) {
-  const token = requireToken();
+async function mondayRequestOnce(query, variables, token) {
   const res = await fetch(MONDAY_API_URL, {
     method: "POST",
     headers: {
@@ -30,16 +51,45 @@ async function mondayRequest(query, variables = {}) {
 
   if (!res.ok) {
     const text = await res.text().catch(() => "");
-    throw new Error(`monday.com API HTTP ${res.status}: ${text.slice(0, 500)}`);
+    const err = new Error(`monday.com API HTTP ${res.status}: ${text.slice(0, 500)}`);
+    err.httpStatus = res.status;
+    throw err;
   }
 
   const json = await res.json();
   if (json.errors && json.errors.length > 0) {
-    throw new Error(
-      `monday.com API error: ${json.errors.map((e) => e.message).join("; ")}`
-    );
+    const message = json.errors.map((e) => e.message).join("; ");
+    const err = new Error(`monday.com API error: ${message}`);
+    err.graphqlMessage = message;
+    throw err;
   }
   return json.data;
+}
+
+async function mondayRequest(query, variables = {}) {
+  const token = requireToken();
+  let lastError;
+
+  for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt += 1) {
+    try {
+      return await mondayRequestOnce(query, variables, token);
+    } catch (err) {
+      lastError = err;
+      const retryable = isRetryable({
+        httpStatus: err.httpStatus,
+        message: err.graphqlMessage ?? err.message,
+      });
+      if (!retryable || attempt === MAX_ATTEMPTS) throw err;
+
+      const delay = RETRY_BASE_DELAY_MS * 2 ** (attempt - 1);
+      console.warn(
+        `  monday.com request failed (attempt ${attempt}/${MAX_ATTEMPTS}): ${err.message}. Retrying in ${delay}ms...`
+      );
+      await sleep(delay);
+    }
+  }
+
+  throw lastError;
 }
 
 export async function getBoardGroups(boardId) {

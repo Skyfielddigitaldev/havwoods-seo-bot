@@ -28,6 +28,7 @@ would just split one team's board in two for no reason.
 | Weekly GEO / AI search tracking | `weekly-geo-ai-tracking.yml` | `weekly-geo-ai-tracking-uk.yml` |
 | Weekly GEO link opportunities | `weekly-geo-link-opportunities.yml` | `weekly-geo-link-opportunities-uk.yml` |
 | Weekly GEO content suggestions | `weekly-geo-content-suggestions.yml` | `weekly-geo-content-suggestions-uk.yml` |
+| Monthly keyword metrics refresh | `monthly-keyword-refresh.yml` | `monthly-keyword-refresh-uk.yml` |
 
 Even though every job above has a UK workflow (so the UK-side Semrush/
 Otterly pull and region path-filtering happens either way), only some of
@@ -154,6 +155,13 @@ ET — no-op until `OTTERLY_REPORT_ID_UK` is set)
   category), or flags that a new page is needed.
 - Writes to the new **HW GEO Content Suggestions** board, status **Needs
   Review**, one row per prompt.
+
+**Monthly** (`.github/workflows/monthly-keyword-refresh.yml`, 1st of each month, 9:17am ET; UK twin `monthly-keyword-refresh-uk.yml`, 9:23am ET)
+- Reads every keyword name already on the **HW Target Keywords** board (US group: "US" / UK group: "UK") and pulls current search volume, keyword difficulty, and CPC from Semrush's keyword_overview report for the matching region's database (`us` or `uk`).
+- Writes the refreshed numbers back to each row. Rows whose metrics haven't changed are skipped (no unnecessary monday.com mutations).
+- Keywords not found in Semrush for that database are logged as "no data" and left unchanged.
+- Keywords are batched in groups of 100 (Semrush's per-call limit) with a short pause between batches.
+- **This job only refreshes existing rows.** Add new keywords directly in monday.com; they'll be picked up on the next monthly run. The US keywords live in the "US" group and the UK keywords in the "UK" group — both groups are on the same board (8168240416).
 
 **Weekly** (`.github/workflows/weekly-approval-routing.yml`, Thursdays
 10:00am ET — a few days after the Monday crawls, to give the team review
@@ -330,6 +338,8 @@ npm run geo-ai-tracking            # HW GEO / AI Search Tracking
 npm run geo-link-opportunities     # HW Off-Page SEO + HW Internal Linking (GEO rows)
 npm run geo-content-suggestions    # HW GEO Content Suggestions
 npm run approval-routing           # Routes Approved dev-needed items to HW Tasks
+npm run keyword-refresh            # Refresh US keyword metrics on HW Target Keywords
+npm run keyword-refresh:uk         # Refresh UK keyword metrics on HW Target Keywords
 ```
 
 ## Board / column IDs

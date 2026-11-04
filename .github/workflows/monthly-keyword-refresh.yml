@@ -1,0 +1,33 @@
+name: Monthly Keyword Refresh (US)
+
+on:
+  schedule:
+    # 1st of each month, 9:17am America/New_York (13:17 UTC).
+    - cron: "17 13 1 * *"
+  workflow_dispatch: {}
+
+concurrency:
+  group: monthly-keyword-refresh-us
+  cancel-in-progress: false
+
+jobs:
+  run:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repo
+        uses: actions/checkout@v4
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Refresh US keyword metrics
+        env:
+          SEMRUSH_API_KEY: ${{ secrets.SEMRUSH_API_KEY }}
+          MONDAY_API_TOKEN: ${{ secrets.MONDAY_API_TOKEN }}
+          REGION: us
+        run: npm run keyword-refresh

@@ -18,7 +18,9 @@
     "geo-link-opportunities:uk": "REGION=uk node src/geo-link-opportunities.js",
     "geo-content-suggestions": "node src/geo-content-suggestions.js",
     "geo-content-suggestions:uk": "REGION=uk node src/geo-content-suggestions.js",
-    "approval-routing": "node src/approval-routing.js"
+    "approval-routing": "node src/approval-routing.js",
+    "keyword-refresh": "node src/keyword-refresh.js",
+    "keyword-refresh:uk": "REGION=uk node src/keyword-refresh.js"
   },
   "license": "UNLICENSED",
   "dependencies": {

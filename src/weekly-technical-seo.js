@@ -48,6 +48,11 @@ const ISSUE_TYPE_LABELS = {
   canonical: "Canonical Issue",
 };
 
+// monday rejects item names of 256 characters or more.
+function clip(text, max = 250) {
+  return text.length > max ? `${text.slice(0, max - 3)}...` : text;
+}
+
 function fingerprint(issue) {
   return `${issue.category}::${issue.url}`;
 }
@@ -58,6 +63,20 @@ async function main() {
   const state = await readState(`technical-seo-state-${REGION}.json`, { loggedIssues: {} });
   const monthGroup = monthGroupName();
   const groupId = await monday.findOrCreateGroup(boards.technicalSeo.id, monthGroup);
+
+  // Adopt rows already on the board for this month, so a run that stopped
+  // partway through (before the state file was saved) doesn't log them twice.
+  const issueIdColumn = boards.technicalSeo.columns.issueId;
+  const existingRows = await monday.getBoardItems(boards.technicalSeo.id, {
+    groupId,
+    columnIds: [issueIdColumn],
+  });
+  for (const row of existingRows) {
+    const key = row.column_values.find((c) => c.id === issueIdColumn)?.text;
+    if (key && !state.loggedIssues[key]) {
+      state.loggedIssues[key] = { itemId: row.id, status: "Needs Review", loggedAt: isoDate() };
+    }
+  }
 
   let issues = [];
   let siteAuditError = null;
@@ -85,7 +104,7 @@ async function main() {
     }
 
     const issueLabel = ISSUE_TYPE_LABELS[issue.category] ?? issue.category;
-    const itemName = `${issueLabel}: ${issue.url}`;
+    const itemName = clip(`${issueLabel}: ${issue.url}`);
 
     // Issues land as "Needs Review" rather than being worked (or routed to
     // devs) immediately. A human reviewer triages each one; the separate
@@ -105,7 +124,7 @@ async function main() {
         : {}),
     });
 
-    await monday.createSubitem(itemId, issue.url, {
+    await monday.createSubitem(itemId, clip(issue.url), {
       [boards.technicalSeo.subitemColumns.pageLink]: monday.columnValue.link(issue.url),
       [boards.technicalSeo.subitemColumns.errorPages]: monday.columnValue.text(issue.detail ?? ""),
       [boards.technicalSeo.subitemColumns.issueFixed]: monday.columnValue.status("Working on it"),

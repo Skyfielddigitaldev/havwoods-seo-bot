@@ -259,8 +259,8 @@ export const boardsByRegion = {
       columns: kpiDashboardColumns,
     },
     geoAiTracking: {
-      id: 18433776446,
-      groupId: "group_mm7mnesc", // "Starter Prompt Set (Oct 2026)"
+      id: 18433047834,
+      groupId: "topics", // "UK" group on the shared tracking board
       columns: geoAiTrackingColumns,
     },
     geoContentSuggestions: {
